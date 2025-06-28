@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 import PyPDF2
 from io import BytesIO
 import datetime
+import validators
+import pandas as pd
 # --- URLs ESPECÍFICAS PARA IMPUESTOS BOLIVIA ---
 # URL para cargar la página y obtener los parámetros iniciales
 get_url = 'https://siat.impuestos.gob.bo/consulta/QR?nit=176360023&cuf=C1129B1EA5B84FD1C229FA2CC46E6004BD8B1A7643DC55CF9AD81F74&numero=44463&t=2'
@@ -10,9 +12,46 @@ get_url = 'https://siat.impuestos.gob.bo/consulta/QR?nit=176360023&cuf=C1129B1EA
 # URL a la que el formulario envía la petición POST para generar el archivo
 post_url = 'https://siat.impuestos.gob.bo/consulta/public/QR.xhtml'
 
+def parsear_query(url: str) -> dict:
+    """
+    Analiza una URL para extraer sus parámetros de consulta (query)
+    sin usar ninguna librería, solo manipulación de strings.
 
+    Args:
+        url (str): La URL completa.
 
-class ObtenerFacrura:
+    Returns:
+        dict: Un diccionario con los parámetros y sus valores.
+    """
+    parametros = {}
+    
+    # 1. Encontrar la parte de la consulta (lo que viene después de '?')
+    try:
+        # Dividimos la url en dos partes usando '?' como separador. 
+        # El [1] se queda con la parte de la derecha.
+        parte_query = url.split('?', 1)[1]
+    except IndexError:
+        # Si no hay '?', la URL no tiene consulta, devolvemos un diccionario vacío.
+        return parametros
+
+    # 2. Separar cada par de clave-valor. Están unidos por '&'.
+    pares = parte_query.split('&')
+    
+    # 3. Recorrer cada par y separarlo en clave y valor usando '='.
+    for par in pares:
+        # Usamos split('=', 1) para dividir solo en el primer '=' que encuentre,
+        # en caso de que el valor también contenga un '='.
+        if '=' in par:
+            clave, valor = par.split('=', 1)
+            parametros[clave] = valor
+        else:
+            # Maneja casos donde un parámetro no tiene valor (ej: ...?enviar)
+            if par: # Asegurarse de que no sea una cadena vacía
+                parametros[par] = '' # Asignamos un valor vacío
+                
+    return parametros
+
+class ObtenerFactura:
     """ Realiza la peticion a SIAT obtiene datos y obtiene el detalle de la factura """
     def __init__(self, get_url: str,
                  post_url:str="https://siat.impuestos.gob.bo/consulta/public/QR.xhtml",
@@ -20,6 +59,20 @@ class ObtenerFacrura:
                  header_base={
                 'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}):
+            if not isinstance(get_url, str) or not isinstance(post_url, str):
+                raise TypeError("La entrada debe ser una cadena de texto (str). get_url o post_url")
+            
+            # validators.url() devuelve True si la URL es válida
+            if not validators.url(get_url) or not validators.url(post_url):
+                raise ValueError(f"La URL proporcionada ('{get_url}' o '{post_url}') no es válida.")
+
+            params=parsear_query(get_url)
+            try:
+                self.cuf=params['cuf']
+                self.nitEmisor=params['nit']
+                self.Nfactura=params['numero']
+            except:
+                raise ValueError("NO SE PUDO REALIZAR EL PARSEO DE CUF NIT O N FACTURA")
             self.get_url = get_url
             self.post_url = post_url
             self.Factura="Factura Obj"
@@ -28,6 +81,7 @@ class ObtenerFacrura:
             self.headers=header_base
             self.viewState=""
             self.comercio=""
+            self.monto=0
             # --- Atributos para el manejo de estado y errores ---
             self.statusGet=None
             # self.errorGet = None
@@ -36,8 +90,10 @@ class ObtenerFacrura:
             self.session=None
 
     def req_get(self):
+
         self.session = requests.Session()
         try:
+            
             print(f"Paso 1: Conectando a {self.get_url[:40]}...")
             response_get = self.session.get(self.get_url, headers=self.headers)
             response_get.raise_for_status()
@@ -53,20 +109,57 @@ class ObtenerFacrura:
                 
             view_state = view_state_tag['value']
             print("Éxito! ViewState y cookie de sesión obtenidos. view state es ", view_state)
-            self.statusGet=True
+            
             self.viewState=view_state
-            # Agregar Valores Minimos a la factura 
-            self.Factura=""
-            return True
+
+            try:            
+                tbody = soup.find('tbody', id='formQr:idListaDatoSistema_data')
+
+                if tbody:
+                    tabla= tbody.find_parent('table')
+                    encabezados = [th.get_text(strip=True) for th in tabla.find_all('th')]
+                    datos = []
+                    for fila in tabla.find('tbody').find_all('tr'):
+                        celdas = [td.get_text(strip=True) for td in fila.find_all('td')]
+                        datos.append(celdas)
+                df = pd.DataFrame(datos, columns=encabezados)
+                # print("la tabla es \n",df.head(1))
+                # validar que el url es igual a lso datos de la pagina 
+                if (self.nitEmisor == str(df.iloc[0, 1]) and self.Nfactura ==str(df.iloc[0, 3]) and df.iloc[0,5] == "VALIDA"  ):
+                    self.comercio=df.iloc[0, 2]
+                    self.monto=float(df.iloc[0, 4])
+                    self.statusGet=True
+                    # Agregar Valores Minimos a la factura 
+                    self.Factura=""
+                    print("verificado")
+                    return True
+
+                else:
+                    print("error de validacion")
+                    self.statusGet=False
+                    raise RuntimeError("Error de validacion")
+                    # return False
+                
+
+
+
+            except :
+                print("error al revisar la tabla de siat")
+                self.statusGet=False
+                raise RuntimeError("error al revisar la tabla de siat")
+                return False
+
 
         except requests.exceptions.RequestException as e:
             self.statusGet=False
             print(f"Error CRÍTICO al conectar con la URL: {e}")
-            return False
+            raise RuntimeError(f"Error CRÍTICO al conectar con la URL: {e}")
         except ValueError as e:
             self.statusGet=False
-            print(f"Error CRÍTICO: {e}")
+            raise RuntimeError(f"Error CRÍTICO: {e}")
             return False
+        
+
     def req_post(self):
         form_data = {
             'formQr': 'formQr',
@@ -106,14 +199,15 @@ class ObtenerFacrura:
 
     def processPDF(self):
         if self.statusPost == True:
-            # nombre_archivo = "Factura_"+self.comercio+"_"+datetime.datetime.now()+".pdf"
+            # nombre_archivo = "Factura_"+self.comercio+"_"+datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")+".pdf"
             # Ruta_a_guardad=""
             # try:
+            #     print("tratandode guardar con ",nombre_archivo)
             #     with open(nombre_archivo, 'wb') as f:
             #         f.write(self.responsePost)
-            # except:
+            # except Exception as e:
             #     self.statusPDF=False
-            #     print("fallo al leer")
+            #     print("fallo al leer",e)
             #     return False
             try:
                 pdf_reader = PyPDF2.PdfReader(BytesIO(self.responsePost))
@@ -125,8 +219,8 @@ class ObtenerFacrura:
                     print("\n--- INICIO DEL TEXTO (Página 1) ---")
                     print(texto)
                     print("--- FIN DEL TEXTO ---")
-            except:
-                
+            except Exception as e :
+                print("error al leer pdf ",e )
                 self.statusPDF=False
                 return False
         else:
@@ -134,4 +228,17 @@ class ObtenerFacrura:
             return False
     def get_Factura(self):
         return self.Factura
+    
+    def Doit(self):
+        try:
+            self.req_get()
+            self.req_post()
+            self.processPDF()
+        except Exception as e :
+            print(f"error en {e}")
+
 # Creamos una sesión que manejará las cookies por nosotros.
+
+A=ObtenerFactura(get_url=get_url)
+
+A.Doit()
