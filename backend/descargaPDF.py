@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import PyPDF2
 from io import BytesIO
 import datetime
+import asyncio
 import validators
 import pandas as pd
 # --- URLs ESPECÍFICAS PARA IMPUESTOS BOLIVIA ---
@@ -82,18 +83,24 @@ class ObtenerFactura:
             self.viewState=""
             self.comercio=""
             self.monto=0
+            self.get_times=3
+            self.post_times=4
+            self.pdf_times=3
             # --- Atributos para el manejo de estado y errores ---
             self.statusGet=None
-            # self.errorGet = None
+            self.msgGet=None
+            self.msgPost=None
+            self.msgPDF=None
+            self.msgDoIt=None
             self.statusPost = None
             self.statusPDF = None
             self.session=None
 
-    def req_get(self):
+    async def req_get(self):
 
-        self.session = requests.Session()
+        
         try:
-            
+            self.session = requests.Session()
             print(f"Paso 1: Conectando a {self.get_url[:40]}...")
             response_get = self.session.get(self.get_url, headers=self.headers)
             response_get.raise_for_status()
@@ -134,11 +141,13 @@ class ObtenerFactura:
                     print("verificado")
                     return True
 
+
                 else:
+
                     print("error de validacion")
                     self.statusGet=False
-                    raise RuntimeError("Error de validacion")
-                    # return False
+                    self.msgGet=("Error de validacion de url y data de tabla")
+                    return False
                 
 
 
@@ -146,17 +155,20 @@ class ObtenerFactura:
             except :
                 print("error al revisar la tabla de siat")
                 self.statusGet=False
-                raise RuntimeError("error al revisar la tabla de siat")
+                self.msgGet="Error al revisar la tabla de siat"
                 return False
 
 
         except requests.exceptions.RequestException as e:
             self.statusGet=False
             print(f"Error CRÍTICO al conectar con la URL: {e}")
-            raise RuntimeError(f"Error CRÍTICO al conectar con la URL: {e}")
+            # raise RuntimeError(f"Error CRÍTICO al conectar con la URL: {e}")
+            self.msgGet=(f"Error CRÍTICO al conectar con la URL: {e}")
+            return False
         except ValueError as e:
             self.statusGet=False
-            raise RuntimeError(f"Error CRÍTICO: {e}")
+            # raise RuntimeError(f"Error CRÍTICO: {e}")
+            self.msgGet=(f"Error CRÍTICO: {e}")
             return False
         
 
@@ -184,17 +196,18 @@ class ObtenerFactura:
                 
                 self.responsePost=response_post.content
                 self.statusPost=True
-                return True
+                return True 
+
 
             else:
-                print("\nERROR: La respuesta del servidor NO fue un PDF.")
-                print("Revisa la lógica o los parámetros. Respuesta del servidor:")
-                self.statusPost=True
+                self.msgPost=("ERROR: La respuesta del servidor NO fue un PDF.")
+                # print("Revisa la lógica o los parámetros. Respuesta del servidor:")
+                self.statusPost=False
                 return False
                 # print(response_post.text)
         except requests.exceptions.RequestException as e:
-            self.statusPost=True
-            print(f"Error CRÍTICO durante la petición POST: {e}")
+            self.statusPost=False
+            self.msgPost=(f"Error CRÍTICO durante la petición POST: {e}")
             return False
 
     def processPDF(self):
@@ -219,6 +232,8 @@ class ObtenerFactura:
                     print("\n--- INICIO DEL TEXTO (Página 1) ---")
                     print(texto)
                     print("--- FIN DEL TEXTO ---")
+                self.statusPDF=True
+                return True
             except Exception as e :
                 print("error al leer pdf ",e )
                 self.statusPDF=False
@@ -229,16 +244,41 @@ class ObtenerFactura:
     def get_Factura(self):
         return self.Factura
     
-    def Doit(self):
+    def Doit(self,imrpimirPdf=False):
         try:
-            self.req_get()
-            self.req_post()
-            self.processPDF()
+            for i in range (0,self.get_times):
+                print(f"Intento {i+1} de GET")
+                if (self.req_get() == True):
+                    break
+            if self.statusGet == False:
+                raise Exception (self.msgGet)
+            for i in range (0,self.post_times):
+                print(f"Intento {i+1} de POST")
+                if (self.req_post() == True):
+                    break
+            if self.statusPost == False:
+                raise Exception (self.msgPost)
+            if imrpimirPdf:
+                for i in range (0,self.pdf_times):
+                    print(f"Intento {i+1} de POST")
+                    if (self.processPDF() == True):
+                        break
+                if self.statusPDF == False:
+                    raise Exception (self.msgPDF)
+            return True
+            
+            #          
+            
+            
+            
         except Exception as e :
             print(f"error en {e}")
+            self.msgDoIt=e
+            return False
 
 # Creamos una sesión que manejará las cookies por nosotros.
 
-A=ObtenerFactura(get_url=get_url)
+if __name__ == "__main__":
+    A=ObtenerFactura(get_url=get_url)
 
-A.Doit()
+    A.Doit(True)
