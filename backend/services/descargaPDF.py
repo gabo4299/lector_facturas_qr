@@ -4,6 +4,7 @@ import PyPDF2
 from io import BytesIO
 import datetime
 import asyncio
+import httpx
 import validators
 import pandas as pd
 # --- URLs ESPECÍFICAS PARA IMPUESTOS BOLIVIA ---
@@ -96,70 +97,75 @@ class ObtenerFactura:
             self.statusPDF = None
             self.session=None
 
+  
+
+        
+
     async def req_get(self):
 
         
         try:
-            self.session = requests.Session()
-            print(f"Paso 1: Conectando a {self.get_url[:40]}...")
-            response_get = self.session.get(self.get_url, headers=self.headers)
-            response_get.raise_for_status()
+            
+            
+                print(f"Paso 1: Conectando a {self.get_url[:40]}...")
+                response_get = await self.session.get(self.get_url, headers=self.headers)
+                response_get.raise_for_status()
 
-            soup = BeautifulSoup(response_get.text, 'html.parser')
-            
-            # Extraemos el ViewState que el servidor nos envió.
-            view_state_tag = soup.find('input', {'name': 'javax.faces.ViewState'})
-            if not view_state_tag or not view_state_tag.has_attr('value'):
-                self.statusGet=False
-                raise ValueError("No se pudo encontrar el 'javax.faces.ViewState' en la página.")
-            
+                soup = BeautifulSoup(response_get.text, 'html.parser')
                 
-            view_state = view_state_tag['value']
-            print("Éxito! ViewState y cookie de sesión obtenidos. view state es ", view_state)
-            
-            self.viewState=view_state
-
-            try:            
-                tbody = soup.find('tbody', id='formQr:idListaDatoSistema_data')
-
-                if tbody:
-                    tabla= tbody.find_parent('table')
-                    encabezados = [th.get_text(strip=True) for th in tabla.find_all('th')]
-                    datos = []
-                    for fila in tabla.find('tbody').find_all('tr'):
-                        celdas = [td.get_text(strip=True) for td in fila.find_all('td')]
-                        datos.append(celdas)
-                df = pd.DataFrame(datos, columns=encabezados)
-                # print("la tabla es \n",df.head(1))
-                # validar que el url es igual a lso datos de la pagina 
-                if (self.nitEmisor == str(df.iloc[0, 1]) and self.Nfactura ==str(df.iloc[0, 3]) and df.iloc[0,5] == "VALIDA"  ):
-                    self.comercio=df.iloc[0, 2]
-                    self.monto=float(df.iloc[0, 4])
-                    self.statusGet=True
-                    # Agregar Valores Minimos a la factura 
-                    self.Factura=""
-                    print("verificado")
-                    return True
-
-
-                else:
-
-                    print("error de validacion")
+                # Extraemos el ViewState que el servidor nos envió.
+                view_state_tag = soup.find('input', {'name': 'javax.faces.ViewState'})
+                if not view_state_tag or not view_state_tag.has_attr('value'):
                     self.statusGet=False
-                    self.msgGet=("Error de validacion de url y data de tabla")
-                    return False
+                    raise ValueError("No se pudo encontrar el 'javax.faces.ViewState' en la página.")
                 
+                    
+                view_state = view_state_tag['value']
+                print("Éxito! ViewState y cookie de sesión obtenidos. view state es ", view_state)
+                
+                self.viewState=view_state
+
+                try:            
+                    tbody = soup.find('tbody', id='formQr:idListaDatoSistema_data')
+
+                    if tbody:
+                        tabla= tbody.find_parent('table')
+                        encabezados = [th.get_text(strip=True) for th in tabla.find_all('th')]
+                        datos = []
+                        for fila in tabla.find('tbody').find_all('tr'):
+                            celdas = [td.get_text(strip=True) for td in fila.find_all('td')]
+                            datos.append(celdas)
+                    df = pd.DataFrame(datos, columns=encabezados)
+                    # print("la tabla es \n",df.head(1))
+                    # validar que el url es igual a lso datos de la pagina 
+                    if (self.nitEmisor == str(df.iloc[0, 1]) and self.Nfactura ==str(df.iloc[0, 3]) and df.iloc[0,5] == "VALIDA"  ):
+                        self.comercio=df.iloc[0, 2]
+                        self.monto=float(df.iloc[0, 4])
+                        self.statusGet=True
+                        # Agregar Valores Minimos a la factura 
+                        self.Factura=""
+                        print("verificado")
+                        return True
+
+
+                    else:
+
+                        print("error de validacion")
+                        self.statusGet=False
+                        self.msgGet=("Error de validacion de url y data de tabla")
+                        return False
+                    
 
 
 
-            except :
-                print("error al revisar la tabla de siat")
-                self.statusGet=False
-                self.msgGet="Error al revisar la tabla de siat"
-                return False
+                except :
+                    print("error al revisar la tabla de siat")
+                    self.statusGet=False
+                    self.msgGet="Error al revisar la tabla de siat"
+                    return False
 
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             self.statusGet=False
             print(f"Error CRÍTICO al conectar con la URL: {e}")
             # raise RuntimeError(f"Error CRÍTICO al conectar con la URL: {e}")
@@ -172,7 +178,7 @@ class ObtenerFactura:
             return False
         
 
-    def req_post(self):
+    async def req_post(self):
         form_data = {
             'formQr': 'formQr',
             'formQr:idTipoSistema': '1', # Este valor viene en un input oculto en la página
@@ -186,7 +192,7 @@ class ObtenerFactura:
         post_headers['Faces-Request'] = 'partial/ajax'
         post_headers['Referer'] = self.get_url 
         try:
-            response_post = self.session.post(self.post_url, data=form_data, headers=post_headers)
+            response_post = await self.session.post(self.post_url, data=form_data, headers=post_headers)
             response_post.raise_for_status()
 
             # PASO 3: Procesar la respuesta
@@ -244,35 +250,40 @@ class ObtenerFactura:
     def get_Factura(self):
         return self.Factura
     
-    def Doit(self,imrpimirPdf=False):
+    async def Doit(self,imrpimirPdf=False):
         try:
-            for i in range (0,self.get_times):
-                print(f"Intento {i+1} de GET")
-                if (self.req_get() == True):
-                    break
-            if self.statusGet == False:
-                raise Exception (self.msgGet)
-            for i in range (0,self.post_times):
-                print(f"Intento {i+1} de POST")
-                if (self.req_post() == True):
-                    break
-            if self.statusPost == False:
-                raise Exception (self.msgPost)
-            if imrpimirPdf:
-                for i in range (0,self.pdf_times):
-                    print(f"Intento {i+1} de POST")
-                    if (self.processPDF() == True):
+
+            async with httpx.AsyncClient() as self.session:
+                
+                for i in range (0,self.get_times):
+                    print(f"Intento {i+1} de GET")
+                    if (await self.req_get() == True):
                         break
-                if self.statusPDF == False:
-                    raise Exception (self.msgPDF)
-            return True
+                    await asyncio.sleep(0.3)
+                if self.statusGet == False:
+                    raise Exception (self.msgGet)
+                for i in range (0,self.post_times):
+                    print(f"Intento {i+1} de POST")
+                    if (await self.req_post() == True):
+                        break
+                    await asyncio.sleep(1)
+                if self.statusPost == False:
+                    raise Exception (self.msgPost)
+                if imrpimirPdf:
+                    for i in range (0,self.pdf_times):
+                        print(f"Intento {i+1} de POST")
+                        if (self.processPDF() == True):
+                            break
+                    if self.statusPDF == False:
+                        raise Exception (self.msgPDF)
+                return True
             
             #          
             
             
             
         except Exception as e :
-            print(f"error en {e}")
+            print(f"error en doit:  {e}")
             self.msgDoIt=e
             return False
 
@@ -281,4 +292,6 @@ class ObtenerFactura:
 if __name__ == "__main__":
     A=ObtenerFactura(get_url=get_url)
 
-    A.Doit(True)
+    asyncio.run( A.Doit())
+    # print(A.responsePost)
+   

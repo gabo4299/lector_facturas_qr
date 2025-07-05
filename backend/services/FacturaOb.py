@@ -61,7 +61,8 @@ class FacturaElectronica(Factura):
     Hereda de Factura y añade atributos específicos.
     """
     def __init__(self,url:str, 
-                 cinit: str="", monto_total: float=0.0, fecha: datetime=datetime.now(), 
+                 cinit: str="", monto_total: float=0.0, 
+                 fecha: datetime=datetime.now(), 
                  empresa: str="simon",
                  detalles:list =[], 
                  n_factura: int=0, 
