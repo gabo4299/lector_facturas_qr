@@ -121,3 +121,17 @@ class User(UserBase):
 
     class Config:
         from_attributes = True
+
+
+
+class EmpresaBase(BaseModel):
+    nombre: str
+    nit:str
+
+class EmpresaCreate(EmpresaBase):
+    pass
+
+class Empresa(EmpresaBase):
+    id: int
+    class Config:
+        from_attributes = True
