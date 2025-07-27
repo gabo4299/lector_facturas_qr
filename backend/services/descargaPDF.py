@@ -83,18 +83,18 @@ class ObtenerFactura:
             self.headers=header_base
             self.viewState=""
             self.comercio=""
-            self.monto=0
+            self.monto=0.0
             self.get_times=3
-            self.post_times=4
-            self.pdf_times=3
+            self.post_times=2
+            self.total_times=4
             # --- Atributos para el manejo de estado y errores ---
-            self.statusGet=None
+            self.statusGet=False
             self.msgGet=None
             self.msgPost=None
             self.msgPDF=None
             self.msgDoIt=None
-            self.statusPost = None
-            self.statusPDF = None
+            self.statusPost = False
+            self.statusPDF = False
             self.session=None
 
   
@@ -107,7 +107,7 @@ class ObtenerFactura:
         try:
             
             
-                print(f"Paso 1: Conectando a {self.get_url[:40]}...")
+                # print(f"Paso 1: Conectando a {self.get_url[:40]}...")
                 response_get = await self.session.get(self.get_url, headers=self.headers)
                 response_get.raise_for_status()
 
@@ -142,6 +142,7 @@ class ObtenerFactura:
                         self.comercio=df.iloc[0, 2]
                         self.monto=float(df.iloc[0, 4])
                         self.statusGet=True
+                        self.msgGet="Succes"
                         # Agregar Valores Minimos a la factura 
                         self.Factura=""
                         print("verificado")
@@ -202,6 +203,7 @@ class ObtenerFactura:
                 
                 self.responsePost=response_post.content
                 self.statusPost=True
+                self.msgPost="Succes"
                 return True 
 
 
@@ -254,28 +256,35 @@ class ObtenerFactura:
         try:
 
             async with httpx.AsyncClient() as self.session:
-                
-                for i in range (0,self.get_times):
-                    print(f"Intento {i+1} de GET")
-                    if (await self.req_get() == True):
-                        break
-                    await asyncio.sleep(0.3)
-                if self.statusGet == False:
-                    raise Exception (self.msgGet)
-                for i in range (0,self.post_times):
-                    print(f"Intento {i+1} de POST")
-                    if (await self.req_post() == True):
-                        break
-                    await asyncio.sleep(1)
-                if self.statusPost == False:
-                    raise Exception (self.msgPost)
-                if imrpimirPdf:
-                    for i in range (0,self.pdf_times):
-                        print(f"Intento {i+1} de POST")
-                        if (self.processPDF() == True):
+                for a in range (0,self.total_times):
+                    print(f"Intento general N:{a+1} ")
+                    for i in range (0,self.get_times):
+                        print(f"Intento {i+1} de GET")
+                        if (await self.req_get() == True):
                             break
-                    if self.statusPDF == False:
-                        raise Exception (self.msgPDF)
+                        await asyncio.sleep(0.3)
+
+                    for i in range (0,self.post_times):
+                        print(f"Intento {i+1} de POST")
+                        if (await self.req_post() == True):
+                            break
+                        await asyncio.sleep(1)
+                    
+                    if imrpimirPdf:
+                        pass
+                        # for i in range (0,self.pdf_times):
+                        #     print(f"Intento {i+1} de POST")
+                        #     if (self.processPDF() == True):
+                        #         break
+                        # if self.statusPDF == False:
+                        #     raise Exception (self.msgPDF)
+                    if self.statusGet == True and  self.statusPost == True:
+                        return True
+                    await asyncio.sleep(1)
+                if self.statusGet == False:
+                        raise Exception (self.msgGet)
+                if self.statusPost == False:
+                        raise Exception (self.msgPost)
                 return True
             
             #          
@@ -291,7 +300,7 @@ class ObtenerFactura:
 
 if __name__ == "__main__":
     A=ObtenerFactura(get_url=get_url)
-
     asyncio.run( A.Doit())
+    print(f"Get:{A.statusGet} Get_msg:{A.msgGet} Monto:{A.monto} Nit:{A.nitEmisor} \nPost:{A.statusPost}, Post_status:{A.msgPost}")
     # print(A.responsePost)
    

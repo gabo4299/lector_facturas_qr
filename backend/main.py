@@ -1,11 +1,11 @@
 # main.py
 from fastapi import FastAPI
-from backend.api import facturas
+from backend.api import facturas_manuales
 app = FastAPI()
 
 # Incluye el router de facturas en la aplicación principal
 app.include_router(
-    facturas.router,
+    facturas_manuales.router,
     prefix="/facturas", # Añade un prefijo a todas las rutas del router
     tags=["Facturas"]      # Agrupa estos endpoints en la documentación
 )

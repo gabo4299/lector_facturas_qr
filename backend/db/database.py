@@ -10,7 +10,7 @@ import os
 
 DATABASE_URL=os.getenv("ASYNC_DATABASE")
 
-# DATABASE_URL = "postgresql+asyncpg://postgres:gabomanda@localhost:5432/facturas_siat"
+
 
 # Crea el motor asíncrono
 engine = create_async_engine(DATABASE_URL, echo=True)

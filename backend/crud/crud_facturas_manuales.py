@@ -14,6 +14,8 @@ async def get_facturas_manuales(db: AsyncSession, skip: int = 0, limit: int = 10
     return result.scalars().all()
 
 async def create_factura_manual(db: AsyncSession, factura: FacturaManualCreate):
+    # print(f"llego la factura {factura.Nit_Beneficiario}")
+    
     db_factura = FacturaManual(**factura.model_dump())
     db.add(db_factura)
     await db.commit()
@@ -24,12 +26,13 @@ async def update_factura_manual(db: AsyncSession, factura_id: int, factura_updat
     """
     Actualiza una factura manual existente en la base de datos.
     """
-    # Primero, busca la factura existente
+    
     db_factura = await get_factura_manual(db, factura_id=factura_id)
     if not db_factura:
-        return None # Retorna None si la factura no existe
+        return None 
 
     # Actualiza los campos del modelo SQLAlchemy con los datos del schema Pydantic
+    print(f"el factura update es:{factura_update}")
     for key, value in factura_update.model_dump(exclude_unset=True).items():
         setattr(db_factura, key, value)
 
@@ -47,8 +50,7 @@ async def delete_factura_manual(db: AsyncSession, factura_id: int):
     if not db_factura:
         return None # Retorna None si no se encontró
 
-    await db.delete(db_factura) # Marca el objeto para ser eliminado
-    await db.commit() # Confirma la eliminación en la base de datos
-    return db_factura # Retorna el objeto eliminado para confirmación
+    await db.delete(db_factura) 
+    await db.commit() 
+    return db_factura 
 
-# ... (Crea funciones similares para update, delete y para FacturaElectronica) ...

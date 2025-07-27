@@ -1,6 +1,8 @@
-from backend.app.controllers.descargaPDF import ObtenerFactura
-from backend.app.controllers.processPDF import ProcesadorPDF_Rollo
-from backend.app.controllers.FacturaOb import FacturaElectronica
+from .descargaPDF import ObtenerFactura
+from .processPDF import ProcesadorPDF_Rollo
+# from FacturaOb import FacturaElectronica
+from backend.schemas import DetalleItem,FacturaElectronicaCreate
+
 import asyncio
 from io import BytesIO
 class procesadorFacturaElectronica():
@@ -10,45 +12,65 @@ class procesadorFacturaElectronica():
     para poder procesarlo o ver los errores 
     
     '''
-    def __init__(self):
-        self.facturaElec=None
+    def __init__(self,url,facturaElectronica=None):
+        self.url=url
+        if facturaElectronica:
+            self.facturaElec=facturaElectronica
+        else:
+            self.facturaElec=FacturaElectronicaCreate(url=url)
+        self.requestPDF=None
 
 
-    async def getFacturaSIAT(self,url):
-        requestPDF=ObtenerFactura(get_url=url)
-
-        status=await requestPDF.Doit()
+    async def getCompleteFacturaSIAT(self,savePDF=False):
+################### Aqui me quede 
+        self.requestPDF=ObtenerFactura(get_url=self.url)
+        
+        status=await self.requestPDF.Doit()
+        self.facturaElec.save_pdf=savePDF
+        if self.requestPDF.statusGet:
+            self.facturaElec.monto_total=self.requestPDF.monto
+            self.facturaElec.empresa=self.requestPDF.comercio
+            self.facturaElec.nit_emisor=self.requestPDF.nitEmisor
+            self.facturaElec.n_factura=int(self.requestPDF.Nfactura)
+        
         if status == True:
             print("Se hizo factura")
-            pdfIO=requestPDF.responsePost
-            print("PDF tipo",type(pdfIO))
-            dataPDF=await ProcesadorPDF_Rollo.crear(BytesEntrada=BytesIO(pdfIO),Modo=1)
-            if dataPDF.get_nit_emisor() == requestPDF.nitEmisor:
-                print("Mismo nit emisor y nit de query")
-            self.facturaElec=FacturaElectronica(url,
-                               cinit=dataPDF.get_nit_beneficiario(),
-                               monto_total=dataPDF.get_monto_total(),
-                               fecha=dataPDF.get_datetime(),
-                               empresa=dataPDF.get_empresa(),
-                               detalles=dataPDF.get_detalle(),
-                               n_factura=dataPDF.N_factura,
-                               monto_fiscal=dataPDF.get_monto_fiscal(),
-                               nit_emisor=dataPDF.get_nit_emisor(),
-                               es_factura_especial=dataPDF.facturaEspecial
+            pdf=self.requestPDF.responsePost
+            if savePDF:
+                self.facturaElec.pdfIO=pdf
+            else:
+                self.facturaElec.pdfIO=None
+            print("PDF tipo",type(pdf))
+            dataPDF=await ProcesadorPDF_Rollo.crear(BytesEntrada=BytesIO(pdf),Modo=1)
 
-                               )
-            return True
-        return False
+            estadopdf=dataPDF.get_controlador()
+            self.facturaElec.msg_pdf_request=estadopdf
+            self.facturaElec.status_PDFrequest=all(valor[1] for valor in estadopdf.values())
+
+            self.facturaElec.Nit_Beneficiario=dataPDF.get_nit_beneficiario()
+            self.facturaElec.fecha=dataPDF.get_datetime()
+            self.facturaElec.detalles=dataPDF.get_detalle()
+            self.facturaElec.monto_fiscal=dataPDF.get_monto_fiscal()
+            self.facturaElec.factura_especial=dataPDF.facturaEspecial
+
+        
+        self.facturaElec.status_Getrequest=self.requestPDF.statusGet
+        self.facturaElec.status_Postrequest=self.requestPDF.statusPost
+        self.facturaElec.msg_get_request=self.requestPDF.msgGet
+        self.facturaElec.msg_post_request=self.requestPDF.msgPost
+        
+        
+        
+        return self.facturaElec
     def getFacturaElectroni(self):
         return self.facturaElec
-    def procesarFacturaDB(self,id,url):
-        pass
+
 
 async def main ():
-    pd=procesadorFacturaElectronica()
-    factura =await pd.getFacturaSIAT(URL)
+    pd=procesadorFacturaElectronica(URL)
+    factura =await pd.getCompleteFacturaSIAT()
     if factura:
-        pd.getFacturaElectroni().mostrar_info_completa()
+        print(factura.model_dump(mode='json'))
         return True
     else: 
         return False

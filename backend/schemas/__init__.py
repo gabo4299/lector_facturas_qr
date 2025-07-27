@@ -1,1 +1,1 @@
-from .schemas import FacturaElectronica,FacturaManual,FacturaElectronicaCreate,FacturaElectronicaBase,FacturaManualBase,FacturaManualCreate
+from .schemas import FacturaElectronica,FacturaManual,FacturaElectronicaCreate,FacturaElectronicaBase,FacturaManualBase,FacturaManualCreate,DetalleItem

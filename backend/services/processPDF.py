@@ -3,7 +3,30 @@ from io import BytesIO
 import pdfplumber
 import re
 import asyncio
+from typing import List
 from datetime import datetime
+# ################ aqui error de import todo petaaaa 
+try:
+    from backend.schemas.schemas import DetalleItem
+except:
+    from ..schemas.schemas import DetalleItem
+# class EstructuraDetalle():
+#     def __init__(self,detalle:str,Cantidad:float,precioUnitario:float,Descuento:float,total:float):
+#         self.detalle=detalle
+#         self.precioUnitario=precioUnitario
+#         self.cantidad=Cantidad
+#         self.descuento=Descuento
+#         self.total=total
+#     def dumpDict(self):
+#         return {
+#             "detalle":self.detalle,
+#             "precio_unitario":self.precioUnitario,
+#             "cantidad":self.cantidad,
+#             "descuento":self.descuento,
+#             "total":self.total,
+#         }
+            
+
 class ProcesadorPDF_Rollo():
     def __init__ (self,
                   BytesEntrada:BytesIO=BytesIO(),
@@ -24,11 +47,11 @@ class ProcesadorPDF_Rollo():
         self.fecha=""#
         self.facturaEspecial=False
         self.controlador={}
-        self.controlador["Empresa"]=(None,None)
-        self.controlador["Nit_NFactura"]=(None,None)
-        self.controlador["Razon_Social"]=(None,None)
-        self.controlador["Detalles"]=(None,None)
-        self.controlador["Montos"]=(None,None)
+        self.controlador["Empresa"]=(None,False)
+        self.controlador["Nit_NFactura"]=(None,False)
+        self.controlador["Razon_Social"]=(None,False)
+        self.controlador["Detalles"]=(None,False)
+        self.controlador["Montos"]=(None,False)
         self.regexNumeros = r'\d{1,3}(?:,\d{3})*\.\d+'
         self.Zonas=[]
         self.formatoFecha = '%d/%m/%Y %I:%M %p'
@@ -106,7 +129,7 @@ class ProcesadorPDF_Rollo():
             if "FISCAL" in self.Zonas[0]:
         
                 match = re.search(r'CRÉDITO FISCAL\s*(.*?)\s*(?:Sucursal|Casa Matriz)',  self.Zonas[0], re.DOTALL)
-                print(match , "  dentro de ",self.Zonas[0])
+                # print(match , "  dentro de ",self.Zonas[0])
                 if match:
                     
                     self.empresa=" ".join(match.group(1).strip().split())
@@ -157,7 +180,7 @@ class ProcesadorPDF_Rollo():
                         self.nit_ben= linea.split(':')[1].strip()
                         ciclo_nombre=False
                     if "FECHA DE" in linea:
-                        print("fecha es, ",linea)
+                        # print("fecha es, ",linea)
                         self.fecha=linea.split(':')[1].strip() + ":"+linea.split(':')[2].strip()
                 if self.nit_ben != "" and self.fecha != "" and self.nombre_razon != "":
                     return ["Exito",True]
@@ -191,7 +214,9 @@ class ProcesadorPDF_Rollo():
                     # print("linea : ",linea)
                 arraycompra.append(arrayDetalles)
                 # print("arra ed compre \n" ,arraycompra)
-                Listas_reducidas=[]
+                # Listas_reducidas=[]
+                Listas_reducidas: List[DetalleItem] = []
+
                 for sublista in arraycompra:
                     if len(sublista) >= 2:
                         numeros_encontrados = re.findall(self.regexNumeros,  sublista[-1])
@@ -219,11 +244,18 @@ class ProcesadorPDF_Rollo():
                                 total = float(numeros_encontrados[3].replace(',', ''))
                                 arr_new=[cantidad,precio_unitario,descuento,total]
 
-                        nueva_sublista = [sublista[0], arr_new]
-                        Listas_reducidas.append(nueva_sublista)
+                        # nueva_sublista = [sublista[0], arr_new]
+                        
+                        Listas_reducidas.append(DetalleItem(
+                            detalle=sublista[0],
+                            precio_unitario=arr_new[0],
+                            cantidad=arr_new[1],
+                            descuento=arr_new[2],
+                            total=arr_new[3]))
                     else:
+                        
                         # Si tiene 1 o 0 elementos, simplemente la añadimos tal como está
-                        Listas_reducidas.append(sublista)
+                        Listas_reducidas.append(DetalleItem(detalle=sublista))
                 if len(Listas_reducidas)>0:
                     self.detalles=Listas_reducidas.copy()
                     return ["Exito",True]
@@ -320,6 +352,7 @@ async def main():
         print(f"Monto total extraído: {procesador_final.monto_total}")
         print(f"controlador \n {procesador_final.get_controlador()}")
         print(f"data es \n {procesador_final.get_data()}")
+        print(f"detalle es \n {procesador_final.get_detalle()}")
         # print(f"Zonas: {procesador_final.Zonas}") # Descomentar para ver las zonas
     
     except Exception as e:
