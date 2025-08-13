@@ -27,12 +27,12 @@ class FacturaElectronica(Base):
     __tablename__ = "facturas_electronicas"
 
     id = Column(Integer, primary_key=True, index=True)
-    url = Column(String, nullable=False)
+    url = Column(String, nullable=False,unique=True, index=True)
     monto_total = Column(Float, nullable=False)
     Nit_Beneficiario = Column(String, nullable=True)
     fecha = Column(DateTime(timezone=True), default=datetime.datetime.now(datetime.timezone.utc))
     empresa = Column(String, nullable=True)
-    detalles = Column(JSONB, nullable=True) 
+    detalles = Column(JSONB, nullable=True,default=None) 
     n_factura = Column(Integer, nullable=True)
     monto_fiscal = Column(Float, nullable=True)
     nit_emisor = Column(String, nullable=True)
@@ -45,7 +45,7 @@ class FacturaElectronica(Base):
     msg_pdf_request=Column(JSONB,nullable=True)
     pdfIO=Column(LargeBinary,nullable=True)
     save_pdf=Column(Boolean,default=False)
-    batch = Column(String, nullable=True, index=True)
+    batch = Column(Integer, nullable=True, index=True)
 
     categoria_id = Column(Integer, ForeignKey("categorias.id",ondelete="SET NULL"), nullable=True)
     proyecto_id = Column(Integer, ForeignKey("proyectos.id",ondelete="CASCADE"), nullable=True)

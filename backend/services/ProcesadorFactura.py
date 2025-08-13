@@ -3,6 +3,8 @@ from .processPDF import ProcesadorPDF_Rollo
 # from FacturaOb import FacturaElectronica
 from backend.schemas import DetalleItem,FacturaElectronicaCreate
 
+from backend.crud import crud_facturas_electronicas
+from backend.db.database import AsyncSessionLocal
 import asyncio
 from io import BytesIO
 class procesadorFacturaElectronica():
@@ -12,17 +14,22 @@ class procesadorFacturaElectronica():
     para poder procesarlo o ver los errores 
     
     '''
-    def __init__(self,url,facturaElectronica=None):
-        self.url=url
+    def __init__(self,url=None,facturaElectronica:FacturaElectronicaCreate=None):
+        if not url and not facturaElectronica :
+            raise  Exception("error al crear procesador de factura")
+     
+            
         if facturaElectronica:
             self.facturaElec=facturaElectronica
+            self.url=facturaElectronica.url
         else:
             self.facturaElec=FacturaElectronicaCreate(url=url)
+            self.url=url
         self.requestPDF=None
 
 
     async def getCompleteFacturaSIAT(self,savePDF=False):
-################### Aqui me quede 
+ 
         self.requestPDF=ObtenerFactura(get_url=self.url)
         
         status=await self.requestPDF.Doit()
@@ -62,6 +69,26 @@ class procesadorFacturaElectronica():
         
         
         return self.facturaElec
+    
+    async def tarea_de_scraping_y_actualizacion(self):
+        print(f"Tarea en segundo plano iniciada para factura ID: {factura_id}")
+        try:
+            # 1. Ejecuta el scraping
+            datos_completos = await self.getCompleteFacturaSIAT(url)
+            
+            # 2. Crea una nueva sesión de DB para esta tarea
+            async with AsyncSessionLocal() as db:
+                # 3. Llama al CRUD para actualizar la factura
+                await crud_facturas_electronicas.update_factura_desde_scraping(
+                    db=db, 
+                    factura_id=factura_id, 
+                    datos_completos=datos_completos
+                )
+            print(f"Tarea en segundo plano completada para factura ID: {factura_id}")
+        except Exception as e:
+            print(f"Error en la tarea en segundo plano para factura ID {factura_id}: {e}")
+
+
     def getFacturaElectroni(self):
         return self.facturaElec
 

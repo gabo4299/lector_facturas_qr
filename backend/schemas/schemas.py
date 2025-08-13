@@ -87,6 +87,13 @@ class FacturaElectronicaBase(BaseModel):
     categoria_id: Optional[int] = None
     proyecto_id: Optional[int] = None
 
+class FacturaElectronicaInicial(BaseModel):
+    url: str
+    # Podrías añadir aquí los campos que el usuario sí puede definir al inicio
+    # como proyecto_id o categoria_id si los conoce de antemano.
+    save_pdf:Optional[bool]=False
+    proyecto_id: Optional[int] = None
+    categoria_id: Optional[int] = None
 class FacturaElectronicaCreate(FacturaElectronicaBase):
     pass
 
@@ -99,7 +106,7 @@ class FacturaElectronica(FacturaElectronicaBase):
 class FacturaElectronicaUpdate(BaseModel):
     # Solo incluye los campos que se pueden modificar.
     # Todos son opcionales para permitir actualizaciones parciales.
-    save_pdf: Optional[bool] = False
+    save_pdf: Optional[bool] = None
     categoria_id: Optional[int] = None
     proyecto_id: Optional[int] = None
     batch: Optional[int] = None

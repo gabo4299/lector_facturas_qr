@@ -2,11 +2,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from backend.db.models import  FacturaElectronica
-from backend.schemas.schemas import FacturaElectronicaCreate,FacturaElectronicaUpdate
+from backend.schemas.schemas import FacturaElectronicaCreate,FacturaElectronicaUpdate,FacturaElectronicaInicial
 # from backend.services import 
 
 # --- CRUD Factura electronica ---
-async def get_factura_electronica(db: AsyncSession, factura_id: int):
+async def get_factura_electronica(db: AsyncSession, factura_id: int) ->FacturaElectronicaCreate:
     result = await db.execute(select(FacturaElectronica).filter(FacturaElectronica.id == factura_id))
     return result.scalar_one_or_none()
 
@@ -25,7 +25,20 @@ async def create_factura_electronica(db: AsyncSession, factura: FacturaElectroni
     return db_factura
 
 
-async def update_factura_electroncia(db: AsyncSession, factura_id: int, factura_update_data: FacturaElectronicaUpdate):
+async def create_factura_electronica_inicial(db: AsyncSession, factura: FacturaElectronicaInicial):
+    """Crea la factura con datos mínimos y un estado 'procesando'."""
+    db_factura = FacturaElectronica(
+        **factura.model_dump(),
+        monto_total=0.0 
+    )
+    db.add(db_factura)
+    await db.commit()
+    await db.refresh(db_factura)
+    print("\n \n \n \n  se creoo la factura en dvb s \n \n \n \n")
+    return db_factura
+
+
+async def update_factura_electroncia(db: AsyncSession, factura_id: int, factura_update: FacturaElectronicaUpdate):
     '''Solo puede tener los parametros y debe tener todos los parametros  de FacturaElectronicaUpdate : 
     save_pdf
     categoria_id
@@ -38,7 +51,7 @@ async def update_factura_electroncia(db: AsyncSession, factura_id: int, factura_
     # Actualiza los campos del modelo SQLAlchemy con los datos del schema Pydantic
     # print(f"el factura update es:{factura_update_data}")
     
-    for key, value in factura_update_data.model_dump(exclude_unset=True).items():
+    for key, value in factura_update.model_dump(exclude_unset=True).items():
         setattr(db_factura, key, value)
 
     db.add(db_factura) # Añade el objeto actualizado a la sesión
@@ -63,3 +76,20 @@ async def delete_factura_electronica(db: AsyncSession, factura_id: int):
 
 
 
+async def get_factura_electronica_by_url(db: AsyncSession, url: str):
+    """Busca una factura electrónica por su URL."""
+    result = await db.execute(select(FacturaElectronica).filter(FacturaElectronica.url == url))
+    return result.scalar_one_or_none()
+
+async def update_factura_desde_scraping(db: AsyncSession, factura_id: int, datos_completos: FacturaElectronicaCreate):
+    """Actualiza una factura con los datos obtenidos del scraping."""
+    db_factura = await get_factura_electronica(db, factura_id=factura_id)
+    if not db_factura:
+        return None
+
+    update_data = datos_completos.model_dump()
+    for key, value in update_data.items():
+        setattr(db_factura, key, value)
+    
+    await db.commit()
+    return db_factura

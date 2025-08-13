@@ -193,6 +193,7 @@ class ObtenerFactura:
         post_headers['Faces-Request'] = 'partial/ajax'
         post_headers['Referer'] = self.get_url 
         try:
+            print(f"intentado POST con {self.viewState}")
             response_post = await self.session.post(self.post_url, data=form_data, headers=post_headers)
             response_post.raise_for_status()
 
@@ -266,6 +267,7 @@ class ObtenerFactura:
 
                     for i in range (0,self.post_times):
                         print(f"Intento {i+1} de POST")
+                        await asyncio.sleep(2)
                         if (await self.req_post() == True):
                             break
                         await asyncio.sleep(1)
