@@ -43,7 +43,7 @@ class FacturaElectronica(Base):
     msg_get_request=Column(String,nullable=True)
     msg_post_request=Column(String,nullable=True)
     msg_pdf_request=Column(JSONB,nullable=True)
-    pdfIO=Column(LargeBinary,nullable=True)
+    pdfIO=Column(String,nullable=True)
     save_pdf=Column(Boolean,default=False)
     batch = Column(Integer, nullable=True, index=True)
 

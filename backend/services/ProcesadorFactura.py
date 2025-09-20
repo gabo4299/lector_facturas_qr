@@ -1,4 +1,6 @@
-from .descargaPDF import ObtenerFactura
+# DEPRECATED
+
+from .descargaPDF2 import ObtenerFactura
 from .processPDF import ProcesadorPDF_Rollo
 # from FacturaOb import FacturaElectronica
 from backend.schemas import DetalleItem,FacturaElectronicaCreate
@@ -7,6 +9,9 @@ from backend.crud import crud_facturas_electronicas
 from backend.db.database import AsyncSessionLocal
 import asyncio
 from io import BytesIO
+from pathlib import Path
+PDF_STORAGE_PATH = Path("data/facturas")
+PDF_STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 class procesadorFacturaElectronica():
     '''
     Obtiene el pdf del siat, lo procesa y lo guarda en el Objeto Factura, para guardarlo en la db
@@ -23,6 +28,7 @@ class procesadorFacturaElectronica():
             self.facturaElec=facturaElectronica
             self.url=facturaElectronica.url
         else:
+            print("creando factura electronica con url")
             self.facturaElec=FacturaElectronicaCreate(url=url)
             self.url=url
         self.requestPDF=None
@@ -30,9 +36,12 @@ class procesadorFacturaElectronica():
 
     async def getCompleteFacturaSIAT(self,savePDF=False):
  
-        self.requestPDF=ObtenerFactura(get_url=self.url)
+        self.requestPDF=ObtenerFactura(url=self.url)
         
-        status=await self.requestPDF.Doit()
+        pdf,msg=await self.requestPDF.descargar_pdf()
+        print("despueis del pdf : ",msg)
+        pdf=pdf
+        
         self.facturaElec.save_pdf=savePDF
         if self.requestPDF.statusGet:
             self.facturaElec.monto_total=self.requestPDF.monto
@@ -40,14 +49,12 @@ class procesadorFacturaElectronica():
             self.facturaElec.nit_emisor=self.requestPDF.nitEmisor
             self.facturaElec.n_factura=int(self.requestPDF.Nfactura)
         
-        if status == True:
+        if pdf and self.requestPDF.statusPost == True:
             print("Se hizo factura")
-            pdf=self.requestPDF.responsePost
-            if savePDF:
-                self.facturaElec.pdfIO=pdf
-            else:
-                self.facturaElec.pdfIO=None
-            print("PDF tipo",type(pdf))
+
+            
+            # seria bueno en caso de q no funcione el procesador pdf, poner un try y en caso de falla guardar el pdf para despues hacer el procesamiento o ver q fallo ?
+            
             dataPDF=await ProcesadorPDF_Rollo.crear(BytesEntrada=BytesIO(pdf),Modo=1)
 
             estadopdf=dataPDF.get_controlador()
@@ -59,7 +66,13 @@ class procesadorFacturaElectronica():
             self.facturaElec.detalles=dataPDF.get_detalle()
             self.facturaElec.monto_fiscal=dataPDF.get_monto_fiscal()
             self.facturaElec.factura_especial=dataPDF.facturaEspecial
-
+            if savePDF:
+                nombre_archivo=self.requestPDF.comercio+"_"+dataPDF.get_datetime().strftime("%Y-%m-%d")+"_factN_"+str(self.requestPDF.Nfactura)+".pdf"
+                ruta=PDF_STORAGE_PATH / nombre_archivo
+                self.facturaElec.pdfIO=pdf
+            else:
+                self.facturaElec.pdfIO=None
+            print(f"PDF SE GUARDA? {savePDF} entonces la variable pdf es {type(pdf)}")
         
         self.facturaElec.status_Getrequest=self.requestPDF.statusGet
         self.facturaElec.status_Postrequest=self.requestPDF.statusPost
@@ -67,11 +80,11 @@ class procesadorFacturaElectronica():
         self.facturaElec.msg_post_request=self.requestPDF.msgPost
         
         
-        
+        pdf=None,None
         return self.facturaElec
     
-    async def tarea_de_scraping_y_actualizacion(self):
-        print(f"Tarea en segundo plano iniciada para factura ID: {factura_id}")
+    async def tarea_de_scraping_y_actualizacion(self,factura_id,url):
+        print(f"Tarea en segundo plano iniciada para factura electronica ID: {factura_id}")
         try:
             # 1. Ejecuta el scraping
             datos_completos = await self.getCompleteFacturaSIAT(url)
@@ -84,7 +97,7 @@ class procesadorFacturaElectronica():
                     factura_id=factura_id, 
                     datos_completos=datos_completos
                 )
-            print(f"Tarea en segundo plano completada para factura ID: {factura_id}")
+            print(f"Tarea en segundo plano completada para factura ID: {factura_id}, empresa encontra:{datos_completos.empresa}  get_status:{datos_completos.status_Getrequest}, post_status:{datos_completos.status_Postrequest} ")
         except Exception as e:
             print(f"Error en la tarea en segundo plano para factura ID {factura_id}: {e}")
 
@@ -96,8 +109,15 @@ class procesadorFacturaElectronica():
 async def main ():
     pd=procesadorFacturaElectronica(URL)
     factura =await pd.getCompleteFacturaSIAT()
+
     if factura:
-        print(factura.model_dump(mode='json'))
+        print(f"status\n get:{factura.status_Getrequest},{factura.msg_get_request} ")
+        print(f"Post: {factura.status_Postrequest}, {factura.msg_post_request}")
+        print("existe factura",factura.url, "de tipo ", type(factura))
+
+
+        print("existe factura de la empresa",factura.empresa, "por el monto de ",factura.monto_total)
+        # print(factura.model_dump(mode='json'))
         return True
     else: 
         return False
@@ -107,4 +127,4 @@ if __name__ == "__main__":
     URL="https://siat.impuestos.gob.bo/consulta/QR?nit=176360023&cuf=C1129B1EA5B84FD1C229FA2CC46E6004BD8B1A7643DC55CF9AD81F74&numero=44463&t=2"
     RESULTADO=asyncio.run(main()) 
     # RESULTADO.mostrar_info_completa()
-    print("Elr resultado final es ")
+    # print("Elr resultado final es , ",RESULTADO)

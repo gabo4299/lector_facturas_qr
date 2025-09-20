@@ -209,6 +209,7 @@ class ObtenerFactura:
 
 
             else:
+                print("errro respuesta es ",response_post.content)
                 self.msgPost=("ERROR: La respuesta del servidor NO fue un PDF.")
                 # print("Revisa la lógica o los parámetros. Respuesta del servidor:")
                 self.statusPost=False
@@ -219,41 +220,11 @@ class ObtenerFactura:
             self.msgPost=(f"Error CRÍTICO durante la petición POST: {e}")
             return False
 
-    def processPDF(self):
-        if self.statusPost == True:
-            # nombre_archivo = "Factura_"+self.comercio+"_"+datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")+".pdf"
-            # Ruta_a_guardad=""
-            # try:
-            #     print("tratandode guardar con ",nombre_archivo)
-            #     with open(nombre_archivo, 'wb') as f:
-            #         f.write(self.responsePost)
-            # except Exception as e:
-            #     self.statusPDF=False
-            #     print("fallo al leer",e)
-            #     return False
-            try:
-                pdf_reader = PyPDF2.PdfReader(BytesIO(self.responsePost))
-                num_paginas = len(pdf_reader.pages)
-                print(f"El documento tiene {num_paginas} página(s).")
 
-                if num_paginas > 0:
-                    texto = pdf_reader.pages[0].extract_text()
-                    print("\n--- INICIO DEL TEXTO (Página 1) ---")
-                    print(texto)
-                    print("--- FIN DEL TEXTO ---")
-                self.statusPDF=True
-                return True
-            except Exception as e :
-                print("error al leer pdf ",e )
-                self.statusPDF=False
-                return False
-        else:
-            self.statusPDF=False
-            return False
     def get_Factura(self):
         return self.Factura
     
-    async def Doit(self,imrpimirPdf=False):
+    async def Doit(self):
         try:
 
             async with httpx.AsyncClient() as self.session:
@@ -271,15 +242,7 @@ class ObtenerFactura:
                         if (await self.req_post() == True):
                             break
                         await asyncio.sleep(1)
-                    
-                    if imrpimirPdf:
-                        pass
-                        # for i in range (0,self.pdf_times):
-                        #     print(f"Intento {i+1} de POST")
-                        #     if (self.processPDF() == True):
-                        #         break
-                        # if self.statusPDF == False:
-                        #     raise Exception (self.msgPDF)
+
                     if self.statusGet == True and  self.statusPost == True:
                         return True
                     await asyncio.sleep(1)

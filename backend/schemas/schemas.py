@@ -81,11 +81,14 @@ class FacturaElectronicaBase(BaseModel):
     msg_get_request:Optional[str] = None
     msg_post_request:Optional[str] = None
     msg_pdf_request:Optional[dict] = None
-    pdfIO:Optional[bytes]=None
+    pdfIO:Optional[str]=None
     # #####################################################################
     batch: Optional[int] = None
     categoria_id: Optional[int] = None
     proyecto_id: Optional[int] = None
+    class Config:
+        from_attributes = True
+
 
 class FacturaElectronicaInicial(BaseModel):
     url: str

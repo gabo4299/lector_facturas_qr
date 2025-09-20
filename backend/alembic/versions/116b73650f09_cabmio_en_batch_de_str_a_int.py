@@ -24,7 +24,15 @@ def upgrade() -> None:
     op.alter_column('facturas_electronicas', 'batch',
                existing_type=sa.VARCHAR(),
                type_=sa.Integer(),
-               existing_nullable=True)
+               existing_nullable=True,
+               # Esta lógica convierte solo los valores numéricos y pone NULL en los demás
+               postgresql_using="""
+               CASE
+                   WHEN batch ~ '^[0-9]+$' THEN batch::integer
+                   ELSE NULL
+               END
+               """
+               )
     # ### end Alembic commands ###
 
 
