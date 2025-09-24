@@ -189,6 +189,7 @@ class FacturaElectronicaCreate(FacturaElectronicaBase):
 class FacturaElectronica(FacturaElectronicaBase):
     id: int
     empresa: Optional[Empresa] = None
+    fecha: Optional[datetime] = None
     proyecto: Optional[Proyecto] = None
     categoria: Optional[Categoria] = None
     batch: Optional[Batch] = None

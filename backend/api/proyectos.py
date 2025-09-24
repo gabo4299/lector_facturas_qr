@@ -109,7 +109,7 @@ async def eliminar_proyecto(
 @router.post("/{proyecto_id}/miembros", status_code=status.HTTP_201_CREATED, tags=["Gestión de Miembros"])
 async def anadir_miembro(
     miembro_data: schemas.MiembroProyecto,
-    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño"])),
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño","editor"])),
     db: AsyncSession = Depends(get_db)
 ):
     """

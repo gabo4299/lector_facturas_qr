@@ -3,11 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from backend.services import factura_service
 from fastapi.responses import JSONResponse
-from backend.crud import crud_facturas_electronicas
+from backend.crud import crud_facturas_electronicas,crud_proyecto
 from backend.schemas import schemas
 from backend.db import models
 from backend.db.database import engine, AsyncSessionLocal
-
+from backend.api import auth
 router = APIRouter()
 
 async def get_db():
@@ -18,7 +18,8 @@ async def get_db():
 async def crear_factura_electronica(
     factura_inicial: schemas.FacturaElectronicaInicial, # Un nuevo schema solo con la URL
     background_tasks: BackgroundTasks, # Inyectamos la dependencia
-    db: AsyncSession = Depends(get_db)):
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_active_user)):
     # print("entro a post ",factura.model_dump())
 
     db_factura = await crud_facturas_electronicas.get_factura_electronica_by_url(db, url=factura_inicial.url)
@@ -34,11 +35,18 @@ async def crear_factura_electronica(
             detail=msg_detail
            
         )
+    proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=factura_inicial.proyecto_id)
+    if not proyecto or proyecto.propietario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para añadir facturas a este proyecto."
+        )
+
     factura_creada = await crud_facturas_electronicas.create_factura_electronica_inicial(db=db, factura=factura_inicial)
     # 2. Añade la tarea de larga duración al segundo plano.
     #    Esta función se ejecutará DESPUÉS de que la respuesta haya sido enviada.
     background_tasks.add_task(
-        factura_service.tarea_de_scraping_y_actualizacion, # La función a ejecutar
+        factura_service.tarea_de_scraping_y_actualizacion, # La función a ejecutar AQUI SE DA LOS ERRORES DE FECHA Y ETC
         factura_id=factura_creada.id, # Argumentos para la función
         url=factura_creada.url,
         savePdf=factura_creada.save_pdf
@@ -47,7 +55,8 @@ async def crear_factura_electronica(
     # return await crud_facturas_electronicas.create_factura_electronica(db=db, factura=factura)
 
 @router.get("/electronicas/", response_model=List[schemas.FacturaElectronica])
-async def leer_facturas_electronicas(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def leer_facturas_electronicas(skip: int = 0, limit: int = 100,
+                                      db: AsyncSession = Depends(get_db)):
     facturas = await crud_facturas_electronicas.get_facturas_electronicas(db, skip=skip, limit=limit)
     return facturas
 
@@ -66,7 +75,10 @@ async def leer_factura_elctronica(factura_id: int, db: AsyncSession = Depends(ge
 
 
 @router.put("/electronicas/{factura_id}", response_model=schemas.FacturaElectronica , tags=["Facturas electronicas"])
-async def actualizar_factura_manual(factura_id: int, factura: schemas.FacturaElectronicaUpdate, db: AsyncSession = Depends(get_db)):
+async def actualizar_factura_manual(factura_id: int,
+                                     factura: schemas.FacturaElectronicaUpdate, 
+                                     db: AsyncSession = Depends(get_db),
+                                     current_user: models.User = Depends(auth.get_current_active_user)):
     """
     Actualiza una factura electronica  por su ID.
     Solo puede tener los parametros y debe tener todos los parametros  de FacturaElectronicaUpdate : 
@@ -75,22 +87,46 @@ async def actualizar_factura_manual(factura_id: int, factura: schemas.FacturaEle
     proyecto_id
     batch
     """
+    db_factura = await crud_facturas_electronicas.get_factura_electronica(db, factura_id=factura_id,)
+    if db_factura is None:
+        raise HTTPException(status_code=404, detail="Factura manual no encontrada")
+    
+    proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=db_factura.proyecto_id)
+    if not proyecto or proyecto.propietario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para añadir facturas a este proyecto."
+        )
     db_factura = await crud_facturas_electronicas.update_factura_electroncia(db, factura_id=factura_id, factura_update=factura)
+
     if db_factura is None:
         raise HTTPException(status_code=404, detail="Factura manual no encontrada")
     return db_factura
 
 @router.delete("/electronicas/{factura_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Facturas electronicas"])
-async def eliminar_factura_electronica(factura_id: int, db: AsyncSession = Depends(get_db)):
+async def eliminar_factura_electronica(factura_id: int,
+                                        db: AsyncSession = Depends(get_db),
+                                        current_user: models.User = Depends(auth.get_current_active_user)):
     """
     Elimina una factura electronica por su ID.
     """
+    db_factura = await crud_facturas_electronicas.get_factura_electronica(db, factura_id=factura_id,)
+    if db_factura is None:
+        raise HTTPException(status_code=404, detail="Factura manual no encontrada")
+    
+    proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=db_factura.proyecto_id)
+    if not proyecto or proyecto.propietario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para añadir facturas a este proyecto."
+        )
     db_factura = await crud_facturas_electronicas.delete_factura_electronica(db, factura_id=factura_id)
     if db_factura is None:
         raise HTTPException(status_code=404, detail="Factura Electronica no encontrada")
     # Para DELETE, no se devuelve contenido, solo un código de éxito 204.
     return
 
+# faltaaaa
 
 @router.get("/electronicas/check/{factura_id}",response_model=schemas.FacturaElectronica , tags=["Facturas electronicas"])
 async def check_factura_electronica(factura_id: int,db:AsyncSession=Depends(get_db)):

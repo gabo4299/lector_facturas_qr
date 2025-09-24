@@ -181,6 +181,8 @@ def getScrapp(data):
     except Exception as e:
         print(f"Error aqui  {e}")
         return None,e
+    
+    
 async def downloadFactura(url_factura=url_scraper,
                savePdf=False,
                path=FACTURAS_DIR) ->tuple[ResponseModel,None|str]:

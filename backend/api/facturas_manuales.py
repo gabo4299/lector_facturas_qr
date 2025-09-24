@@ -68,9 +68,15 @@ async def actualizar_factura_manual(factura_id: int,
     db_factura = await crud_facturas_manuales.get_factura_manual(db, factura_id=factura_id)
     if db_factura is None:
         raise HTTPException(status_code=404, detail="Factura manual no encontrada")
-    
+    proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=db_factura.proyecto_id)
+    if not proyecto or proyecto.propietario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para añadir facturas a este proyecto."
+        )
+
     if factura.fecha != None:
-        proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=db_factura.proyecto_id)
+        
         if not (proyecto.fecha_inicio <= factura.fecha.replace(tzinfo=timezone.utc) <= proyecto.fecha_fin):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

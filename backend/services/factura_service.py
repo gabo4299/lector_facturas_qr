@@ -1,4 +1,3 @@
-from .descargaPDF2 import ObtenerFactura
 from .NewSiatdescargaPDF import downloadFactura
 from .processPDF import ProcesadorPDF_Rollo
 # from FacturaOb import FacturaElectronica
@@ -18,6 +17,7 @@ async def procesar_factura_completa_desde_url(url: str, save_pdf: bool = False) 
     data_scraped,pdfRuta = await downloadFactura(url_factura=url,savePdf=save_pdf)
     
 
+    
     # Preparamos un diccionario con los datos que tenemos hasta ahora, incluyendo el estado.
     datos_factura = {
         "url": url,
