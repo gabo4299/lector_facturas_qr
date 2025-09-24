@@ -2,7 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from backend.db.models import FacturaManual,Proyecto,ProyectoUsuario
-from backend.schemas.schemas import FacturaManualCreate
+from backend.schemas.schemas import FacturaManualCreate,FacturaManualUpdate
 from backend.crud import crud_empresa
 from sqlalchemy.orm import joinedload, selectinload 
 # --- CRUD Factura Manual ---
@@ -61,18 +61,39 @@ async def create_factura_manual(db: AsyncSession, factura: FacturaManualCreate):
     await db.refresh(db_factura)
     return await get_factura_manual(db, factura_id=db_factura.id)
 
-async def update_factura_manual(db: AsyncSession, factura_id: int, factura_update: FacturaManualCreate):
+async def update_factura_manual(db: AsyncSession, factura_id: int, 
+                                factura_update: FacturaManualUpdate):
     """
     Actualiza una factura manual existente en la base de datos.
     """
-    
     db_factura = await get_factura_manual(db, factura_id=factura_id)
     if not db_factura:
         return None 
+    update_data = factura_update.model_dump(exclude_unset=True)
+    if "fecha" in update_data:
+        if update_data["fecha"]==None:
+            update_data.pop("fecha")
+    if "nit_empresa" in update_data:
+        # Extraemos el NIT y lo eliminamos del diccionario para no procesarlo en el bucle.
+        nit = update_data.pop("nit_empresa")
+        
+        if nit:
+            # Si se envió un NIT, buscamos o creamos la empresa
+            empresa_obj = await crud_empresa.get_or_create_empresa(db, nit=nit)
+            db_factura.empresa_id = empresa_obj.id
+        else:
+            # Si se envió "nit_empresa": null, desasociamos la factura de la empresa.
+            db_factura.empresa_id = None
+    
+    
+    
+    
 
     # Actualiza los campos del modelo SQLAlchemy con los datos del schema Pydantic
-    print(f"el factura update es:{factura_update}")
-    for key, value in factura_update.model_dump(exclude_unset=True).items():
+    # print(f"el factura update es:{factura_update}")
+
+    for key, value in update_data.items():
+        print("data q se da ",key)
         setattr(db_factura, key, value)
 
     db.add(db_factura) # Añade el objeto actualizado a la sesión

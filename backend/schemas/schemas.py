@@ -119,10 +119,16 @@ class FacturaManualCreate(FacturaManualBase):
     categoria_id: Optional[int] = None
     batch_id: Optional[int] = None
 
+class FacturaManualUpdate(BaseModel):
+    monto_total: Optional[float] = None
+    fecha: Optional[datetime] = None
+    nit_emisor: Optional[str] = None # Para cambiar/asignar la empresa
+    categoria_id: Optional[int] = None ## ver esto para despues
+
 
 class FacturaManual(FacturaManualBase):
     id: int
-    fecha: datetime
+    fecha: Optional[datetime] = None
     empresa: Optional[Empresa] = None
     proyecto: Optional[Proyecto] = None
     categoria: Optional[Categoria] = None

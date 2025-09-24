@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException,status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-
-from backend.crud import crud_facturas_manuales
+from backend.api import auth
+from backend.crud import crud_facturas_manuales,crud_proyecto
 from backend.schemas import schemas
 from backend.db import models
 from backend.db.database import engine, AsyncSessionLocal
-
+from datetime import timezone
 router = APIRouter()
 
 async def get_db():
@@ -14,7 +14,32 @@ async def get_db():
         yield session
 
 @router.post("/manuales/", response_model=schemas.FacturaManual, status_code=201)
-async def crear_factura_manual(factura: schemas.FacturaManualCreate, db: AsyncSession = Depends(get_db)):
+async def crear_factura_manual(factura: schemas.FacturaManualCreate, 
+                               db: AsyncSession = Depends(get_db),
+                               current_user: models.User = Depends(auth.get_current_active_user)):
+    proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=factura.proyecto_id)
+    if not proyecto or proyecto.propietario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para añadir facturas a este proyecto."
+        )
+
+    if factura.Nit_Beneficiario != proyecto.nit_beneficiario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El NIT de la factura ({factura.Nit_Beneficiario}) no coincide con el NIT del proyecto ({proyecto.nit_beneficiario})."
+        )
+    if not factura.fecha:
+         raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La factura debe tener una fecha para ser registrada en un proyecto."
+        )
+    if not (proyecto.fecha_inicio <= factura.fecha.replace(tzinfo=timezone.utc) <= proyecto.fecha_fin):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La fecha de la factura ({factura.fecha.date()}) está fuera del rango del proyecto ({proyecto.fecha_inicio.date()} al {proyecto.fecha_fin.date()})."
+        )
+
     # print("entro a post ",factura.model_dump())
     return await crud_facturas_manuales.create_factura_manual(db=db, factura=factura)
 
@@ -30,18 +55,35 @@ async def leer_factura_manual(factura_id: int, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     return db_factura
 
-@router.put("/manuales/{factura_id}", response_model=schemas.FacturaManual, tags=["Facturas Manuales"])
-async def actualizar_factura_manual(factura_id: int, factura: schemas.FacturaManualCreate, db: AsyncSession = Depends(get_db)):
+@router.put("/manuales/{factura_id}", response_model=schemas.FacturaManual,
+             tags=["Facturas Manuales"],
+             )
+async def actualizar_factura_manual(factura_id: int, 
+                                    factura: schemas.FacturaManualUpdate, 
+                                    db: AsyncSession = Depends(get_db),
+                                    current_user: models.User = Depends(auth.get_current_active_user)):
     """
     Actualiza una factura manual por su ID.
     """
-    db_factura = await crud_facturas_manuales.update_factura_manual(db, factura_id=factura_id, factura_update=factura)
+    db_factura = await crud_facturas_manuales.get_factura_manual(db, factura_id=factura_id)
     if db_factura is None:
         raise HTTPException(status_code=404, detail="Factura manual no encontrada")
+    
+    if factura.fecha != None:
+        proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=db_factura.proyecto_id)
+        if not (proyecto.fecha_inicio <= factura.fecha.replace(tzinfo=timezone.utc) <= proyecto.fecha_fin):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La fecha de la factura ({factura.fecha.date()}) está fuera del rango del proyecto ({proyecto.fecha_inicio.date()} al {proyecto.fecha_fin.date()})."
+            )
+    
+    db_factura = await crud_facturas_manuales.update_factura_manual(db, factura_id=factura_id, factura_update=factura)
+    
     return db_factura
 
 @router.delete("/manuales/{factura_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Facturas Manuales"])
-async def eliminar_factura_manual(factura_id: int, db: AsyncSession = Depends(get_db)):
+async def eliminar_factura_manual(factura_id: int, db: AsyncSession = Depends(get_db),
+                                  current_user: models.User = Depends(auth.get_current_active_user)):
     """
     Elimina una factura manual por su ID.
     """

@@ -50,7 +50,8 @@ async def actualizar_empresa_manual(empresa_id: int, empresa: schemas.EmpresaUpd
     return db_empresa
 
 @router.delete("/{empresa_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["empresa"])
-async def eliminar_empresa(empresa_id: int, db: AsyncSession = Depends(get_db)):
+async def eliminar_empresa(empresa_id: int, db: AsyncSession = Depends(get_db),
+                           superuser: models.User = Depends(auth.get_current_superuser)):
     """
     Elimina una factura electronica por su ID.
     """
