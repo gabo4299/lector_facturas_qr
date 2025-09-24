@@ -59,7 +59,7 @@ async def create_empresa(db: AsyncSession, empresa: schemas.EmpresaCreate):
 
 async def update_empresa(db: AsyncSession, empresa_id: int, empresa_update: schemas.EmpresaUpdate):
     '''update empresa'''
-    db_empresa = await get_empresa(db, empresa_id==empresa_id )
+    db_empresa = await get_empresa(db, empresa_id=empresa_id )
     if not db_empresa:
         return None 
 
@@ -80,7 +80,7 @@ async def delete_empresa(db: AsyncSession, empresa_id: int):
     elimina empresa
     """
     # Busca la factura que se va a eliminar
-    db_empresa = await get_empresa(db, factura_id=empresa_id)
+    db_empresa = await get_empresa(db, empresa_id=empresa_id)
     if not db_empresa:
         return None # Retorna None si no se encontró
 
