@@ -18,7 +18,7 @@ async def create_user(db: AsyncSession, user: schemas.UserCreate):
     hashed_password = security.get_password_hash(user.password)
     
     # Creamos el objeto del modelo de la DB, usando la contraseña hasheada
-    db_user = models.User(email=user.email, hashed_password=hashed_password)
+    db_user = models.User(email=user.email, password=hashed_password,name=user.name)
     
     db.add(db_user)
     await db.commit()

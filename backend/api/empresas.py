@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException,status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-
+from backend.api import auth
 from backend.crud import crud_empresa
 from backend.schemas import schemas
 from backend.db import models
@@ -14,17 +14,21 @@ async def get_db():
         yield session
 
 @router.post("/", response_model=schemas.Empresa, status_code=201)
-async def crear_empresa(empresa: schemas.EmpresaCreate, db: AsyncSession = Depends(get_db)):
+async def crear_empresa(empresa: schemas.EmpresaCreate, db: AsyncSession = Depends(get_db),
+                        superuser: models.User = Depends(auth.get_current_superuser)):
     # print("entro a post ",factura.model_dump())
     return await crud_empresa.create_empresa(db=db, empresa=empresa)
 
 @router.get("/", response_model=List[schemas.Empresa])
-async def leer_empresas(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def leer_empresas(skip: int = 0, limit: int = 100, 
+                        db: AsyncSession = Depends(get_db),
+                        current_user: models.User = Depends(auth.get_current_active_user)):
     empresas = await crud_empresa.get_empresas(db, skip=skip, limit=limit)
     return empresas
 
 @router.get("/{empresa_id}", response_model=schemas.Empresa)
-async def leer_empresa(empresa_id: int, db: AsyncSession = Depends(get_db)):
+async def leer_empresa(empresa_id: int, db: AsyncSession = Depends(get_db),
+                       current_user: models.User = Depends(auth.get_current_active_user)):
     db_empresa = await crud_empresa.get_empresa(db, empresa_id=empresa_id)
     if db_empresa is None:
         raise HTTPException(status_code=404, detail="empresa no encontrado")
@@ -33,13 +37,16 @@ async def leer_empresa(empresa_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{empresa_id}", response_model=schemas.Empresa, tags=["empresa"])
-async def actualizar_empresa_manual(empresa_id: int, empresa: schemas.Empresa, db: AsyncSession = Depends(get_db)):
+async def actualizar_empresa_manual(empresa_id: int, empresa: schemas.EmpresaUpdate,
+                                     db: AsyncSession = Depends(get_db),
+                                     superuser: models.User = Depends(auth.get_current_superuser)):
     """
     Actualiza empresa  por su ID.
     """
     db_empresa = await crud_empresa.update_empresa(db, empresa_id=empresa_id, empresa_update=empresa)
     if db_empresa is None:
         raise HTTPException(status_code=404, detail="empresa no encontrado")
+    
     return db_empresa
 
 @router.delete("/{empresa_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["empresa"])

@@ -14,12 +14,12 @@ async def get_db():
         yield session
 
 @router.post("/", response_model=schemas.User, status_code=201)
-async def crear_user(proyecto: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
+async def crear_user(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
     # print("entro a post ",factura.model_dump())
-    return await crud_users.create_user(db=db, proyecto=proyecto)
+    return await crud_users.create_user(db=db, user=user)
 
 
-@router.get("/{user_id}", response_model=schemas.Proyecto)
+@router.get("/{user_id}", response_model=schemas.User)
 async def leer_user(user_id: int, db: AsyncSession = Depends(get_db)):
     db_user = await crud_users.get_user(db, user_id=user_id)
     if db_user is None:
@@ -27,7 +27,7 @@ async def leer_user(user_id: int, db: AsyncSession = Depends(get_db)):
     return db_user
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["User"])
-async def eliminar_proyecto(user_id: int, db: AsyncSession = Depends(get_db)):
+async def eliminar_user(user_id: int, db: AsyncSession = Depends(get_db)):
     """
     Elimina user ID.
     """

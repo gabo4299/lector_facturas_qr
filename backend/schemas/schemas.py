@@ -3,9 +3,12 @@ from pydantic import BaseModel,EmailStr
 from datetime import datetime
 from typing import Optional, List
 
+from typing import Literal 
+
 
 class CategoriaBase(BaseModel):
     nombre: str
+    descripcion: Optional[str] = None
 
 class CategoriaCreate(CategoriaBase):
     pass
@@ -15,19 +18,84 @@ class Categoria(CategoriaBase):
     class Config:
         from_attributes = True
 
-class ProyectoBase(BaseModel):
+class EmpresaBase(BaseModel):
     nombre: str
-    fecha_inicio:Optional[datetime] = None
-    fecha_fin:Optional[datetime] = None
+    nit:str
+    rubro: Optional[str] = None
 
-
-class ProyectoCreate(ProyectoBase):
+class EmpresaUpdate(BaseModel):
+    nombre: Optional[str]=None
+    rubro: Optional[str] = None
+class EmpresaCreate(EmpresaBase):
     pass
 
-class Proyecto(ProyectoBase):
+class Empresa(EmpresaBase):
     id: int
     class Config:
         from_attributes = True
+
+class BatchBase(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+class BatchCreate(BatchBase):
+    proyecto_id: int
+class Batch(BatchBase):
+    id: int
+    proyecto_id: int
+    class Config: from_attributes = True
+
+class UserBase(BaseModel):
+    email: EmailStr
+    name:Optional[str]=None
+
+class UserUpdate(BaseModel):
+    name:Optional[str]=None
+class UserCreate(UserBase):
+    # La contraseña solo se requiere al crear el usuario
+    password: str
+
+class User(UserBase):
+    id: int
+    is_active: bool
+    is_superuser: bool #
+
+    class Config:
+        from_attributes = True
+
+class MiembroSchema(BaseModel):
+    rol: str
+    usuario: User # Anidamos el schema de User completo
+
+    class Config:
+        from_attributes = True
+
+class ProyectoBase(BaseModel):
+    nombre: str
+    fecha_inicio: datetime
+    fecha_fin: datetime
+    nit_beneficiario: str
+class ProyectoCreate(ProyectoBase):
+    # propietario_id: int por jwt ya no se necesita
+
+    pass
+
+class ProyectoUpdate(BaseModel):
+    # Todos los campos son opcionales
+    nombre: Optional[str] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    nit_beneficiario: Optional[str] = None
+class Proyecto(ProyectoBase):
+    id: int
+    propietario: User # Relación anidada
+    asociaciones_usuario: List[MiembroSchema] = []
+    batches: List[Batch] = [] # Lista de batches
+    class Config: from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
 
 
 class DetalleItem(BaseModel):
@@ -42,52 +110,25 @@ class FacturaManualBase(BaseModel):
     Nit_Beneficiario: str
     monto_total: float
     fecha: Optional[datetime] = None
-    empresa: Optional[str] = None
-    batch: Optional[int] = None
-    # Al crear, esperamos recibir los IDs de la categoría y el proyecto
-    categoria_id: Optional[int] = None
-    proyecto_id: Optional[int] = None
+   
 
 class FacturaManualCreate(FacturaManualBase):
-    pass
+    nit_emisor: Optional[str] = None
+    nombre_empresa: Optional[str] = None
+    proyecto_id: int
+    categoria_id: Optional[int] = None
+    batch_id: Optional[int] = None
+
 
 class FacturaManual(FacturaManualBase):
     id: int
-    # #ver si da esto de fecha
-    # fecha: datetime
-    # Al leer, devolvemos los objetos completos anidados
-    categoria: Optional[Categoria] = None
+    fecha: datetime
+    empresa: Optional[Empresa] = None
     proyecto: Optional[Proyecto] = None
-    class Config:
-        from_attributes = True # Anteriormente orm_mode
+    categoria: Optional[Categoria] = None
+    batch: Optional[Batch] = None
+    class Config: from_attributes = True
 
-
-# --- Factura Electrónica ---
-class FacturaElectronicaBase(BaseModel):
-    url: str
-    monto_total: Optional[float] = None
-    Nit_Beneficiario: Optional[str] = None
-    fecha: Optional[datetime] = None
-    empresa: Optional[str] = None
-    detalles: Optional[List[DetalleItem]] = None
-    n_factura: Optional[int] = None
-    monto_fiscal: Optional[float] = None
-    nit_emisor: Optional[str] = None
-    factura_especial: Optional[bool] = False
-    save_pdf:Optional[bool]=False
-    status_Getrequest:Optional[bool]=False
-    status_Postrequest:Optional[bool]=False
-    status_PDFrequest:Optional[bool]=False
-    msg_get_request:Optional[str] = None
-    msg_post_request:Optional[str] = None
-    msg_pdf_request:Optional[dict] = None
-    pdfIO:Optional[str]=None
-    # #####################################################################
-    batch: Optional[int] = None
-    categoria_id: Optional[int] = None
-    proyecto_id: Optional[int] = None
-    class Config:
-        from_attributes = True
 
 
 class FacturaElectronicaInicial(BaseModel):
@@ -95,13 +136,56 @@ class FacturaElectronicaInicial(BaseModel):
     # Podrías añadir aquí los campos que el usuario sí puede definir al inicio
     # como proyecto_id o categoria_id si los conoce de antemano.
     save_pdf:Optional[bool]=False
-    proyecto_id: Optional[int] = None
+    proyecto_id: int
     categoria_id: Optional[int] = None
+    batch_id: Optional[int] = None
+
+# --- Factura Electrónica ---
+class FacturaElectronicaBase(BaseModel):
+    url: str
+    monto_total: Optional[float] = None
+    Nit_Beneficiario: Optional[str] = None
+    fecha: Optional[datetime] = None
+    detalles: Optional[List[DetalleItem]] = None
+    n_factura: Optional[int] = None
+    monto_fiscal: Optional[float] = None
+    factura_especial: Optional[bool] = False
+    save_pdf:Optional[bool]=False
+    #  aqui nos recomendaron 
+    # empresa: Optional[str] = None
+    # mejor solo un status mas limmpio 
+    status: str = "pendiente"
+    complete:bool=False
+    # status_Getrequest:Optional[bool]=False
+    # status_Postrequest:Optional[bool]=False
+    # status_PDFrequest:Optional[bool]=False
+    # msg_get_request:Optional[str] = None
+    # msg_post_request:Optional[str] = None
+    # msg_pdf_request:Optional[dict] = None
+    pdfIO:Optional[str]=None
+    # #####################################################################
+    # batch: Optional[int] = None
+    # categoria_id: Optional[int] = None
+    # proyecto_id: Optional[int] = None
+    class Config:
+        from_attributes = True
+
+
+
 class FacturaElectronicaCreate(FacturaElectronicaBase):
-    pass
+    nit_emisor: Optional[str] = None
+    proyecto_id: int
+    categoria_id: Optional[int] = None
+    batch_id: Optional[int] = None
+    
+
 
 class FacturaElectronica(FacturaElectronicaBase):
     id: int
+    empresa: Optional[Empresa] = None
+    proyecto: Optional[Proyecto] = None
+    categoria: Optional[Categoria] = None
+    batch: Optional[Batch] = None
     class Config:
         from_attributes = True
 
@@ -112,36 +196,21 @@ class FacturaElectronicaUpdate(BaseModel):
     save_pdf: Optional[bool] = None
     categoria_id: Optional[int] = None
     proyecto_id: Optional[int] = None
-    batch: Optional[int] = None
+    batch_id: Optional[int] = None
 
 
 
 
+# Nuevo schema para la gestión de miembros
+class MiembroProyecto(BaseModel):
+    usuario_id: int
+    # Usamos Literal para asegurar que el rol solo pueda ser 'editor' o 'lector'
+    rol: Literal['editor', 'lector']
 
-class UserBase(BaseModel):
-    email: EmailStr
-
-class UserCreate(UserBase):
-    # La contraseña solo se requiere al crear el usuario
-    password: str
-
-class User(UserBase):
-    id: int
-    is_active: bool
-
-    class Config:
-        from_attributes = True
+class MiembroProyectoUpdate(BaseModel):
+    # Solo se puede actualizar el rol
+    rol: Literal['editor', 'lector']
 
 
-
-class EmpresaBase(BaseModel):
-    nombre: str
-    nit:str
-
-class EmpresaCreate(EmpresaBase):
-    pass
-
-class Empresa(EmpresaBase):
-    id: int
-    class Config:
-        from_attributes = True
+Proyecto.model_rebuild()
+User.model_rebuild()

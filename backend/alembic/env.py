@@ -4,23 +4,20 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from dotenv import load_dotenv 
 
-load_dotenv()
+
 import os
 import sys
 from pathlib import Path
-####################################################################################
-# Navega desde la ubicación de este archivo (alembic/env.py)
-# hasta el directorio raíz del proyecto y lo añade al path de Python.
-# Path(__file__) -> /path/to/project/backend/alembic/env.py
-# .parent -> /path/to/project/backend/alembic
-# .parent -> /path/to/project/backend
-# .parent -> /path/to/project
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-# ##################################################################################
-from backend.db import Base 
 
+# (Opcional, pero recomendado si usas .env)
+# from dotenv import load_dotenv
+# load_dotenv()
+
+# 2. Importa la 'Base' de tus modelos de SQLAlchemy.
+#    Asegúrate de que la ruta sea correcta según tu estructura.
+from backend.db import Base # Asumiendo que Base está en backend/db/__init__.py o database.py
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -34,7 +31,6 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-# target_metadata = None
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

@@ -4,10 +4,12 @@ import asyncio
 from playwright_stealth import Stealth
 from bs4 import BeautifulSoup
 import asyncio
+import datetime
 from playwright.async_api import async_playwright
 import re
 from urllib.parse import urlparse, parse_qs
-
+from backend.config import FACTURAS_DIR
+from pathlib import Path
 url_scraper="https://siat.impuestos.gob.bo/consulta/QR?nit=320876029&cuf=15F489E0D6750AAA8211EC26FF7AA7CA40D92202E7927ABFE56971F74&numero=43163&t=1"
 poison_script = """
             console.log('☢️ Desplegando Antídoto de Envenenamiento del Depurador...');
@@ -107,6 +109,13 @@ class ResponseModel:
         estructura=f"{div1}\n{validez}\n{div2}\n{com}\n{div3}\n{cliente}\n{div4}\n{extradata}"
 
         return estructura
+    def get_datetime(self):
+        try:
+            fec=datetime.datetime.strptime(self.fecha, "%d/%m/%Y %H:%M:%S")
+            return fec
+        except :
+            print("errro al tratar de obtenre un datetime de fecha")
+            return datetime.datetime(year=1999, month=1, day=1)
     def getDict(self):
         return {
         "comercio" : self.comercio,
@@ -157,14 +166,24 @@ def getScrapp(data):
             if label_text in key_map:
                 value_span = label_span.find_next_sibling('span')
                 if value_span:
-                    datos_factura[key_map[label_text]] = value_span.text.strip()
+                    if label_text== "Monto Total:":
+                        numero = re.findall(r"\d+\.\d+", value_span.text.strip())
+                        # Si se encontró el número, lo convertimos a float
+                        if numero:
+                            numero_float = float(numero[0])
+                            
+                            datos_factura[key_map[label_text]] = numero_float
+                        else:
+                            datos_factura[key_map[label_text]] = 0.0
+                    else:
+                        datos_factura[key_map[label_text]] = value_span.text.strip()
         return datos_factura,True
     except Exception as e:
         print(f"Error aqui  {e}")
         return None,e
 async def downloadFactura(url_factura=url_scraper,
                savePdf=False,
-               path="/") ->tuple[ResponseModel,None|str]:
+               path=FACTURAS_DIR) ->tuple[ResponseModel,None|str]:
     
     pdf_io=None
     async with async_playwright() as p:
@@ -230,10 +249,10 @@ async def downloadFactura(url_factura=url_scraper,
                 print("exxtraccion exitosa ")
                 for key, value in data.items():
                     print(f"{key}: {value}")
-                response_model.nFactura=data["numero_factura"]
+                response_model.nFactura=int(data["numero_factura"])
                 response_model.cuf=data["cuf"]
                 response_model.fecha=data["fecha_emision"]
-                response_model.monto=data["monto_total"]
+                response_model.monto=float(data["monto_total"])
                 response_model.estado_fact_url=data["estado_factura"]
                 response_model.nitEmisor=data["nit_emisor"]
                 response_model.comercio=data["razon_social_emisor"]
@@ -248,9 +267,16 @@ async def downloadFactura(url_factura=url_scraper,
             # validar????? no lo se 
 
             if savePdf:
+                
                 print("Iniciando secuencia de descarga del PDF...")
                 
                 try:
+                    if type (path) == type("str"):
+                        ruta = Path(path)
+                        if not ruta.exists():
+                            print("¡La ruta existe!")
+                            raise PDFRequestError(" error en la path de guardado")
+                        path = Path(path)
                     # Preparamos a Playwright para que espere una descarga.
                     async with page.expect_download() as download_info:
                         # 1. Localizamos el botón "Descargar Factura" por su texto y hacemos clic.
@@ -263,12 +289,11 @@ async def downloadFactura(url_factura=url_scraper,
                     
                     # 3. La descarga ya ha sido capturada por 'download_info'.
                     download = await download_info.value
-                    if path == "/":
-                        pass
-                    else:
-                        pass
                     
-                    file_path = f"factura_example_final.pdf"
+                        
+                    nombre_archivo=data["nit_emisor"]+"_"+response_model.get_datetime().strftime("%Y-%m-%d")+"_factN_"+str(response_model.nFactura)+".pdf"
+                    file_path = path / nombre_archivo
+
                     await download.save_as(file_path)
                     pdf_io=file_path
                     print(f"🎉 ¡PDF descargado con éxito! Guardado como: {file_path}")
@@ -308,5 +333,5 @@ async def downloadFactura(url_factura=url_scraper,
             return response_model,pdf_io
 
 if __name__ == '__main__':
-    response=asyncio.run(downloadFactura(savePdf=False))
+    response=asyncio.run(downloadFactura(savePdf=True))
     print("mensaje : \n",response[0],response[1])

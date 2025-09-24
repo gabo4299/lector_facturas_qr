@@ -8,54 +8,59 @@ from backend.crud import crud_facturas_electronicas
 from backend.db.database import AsyncSessionLocal
 import asyncio
 from io import BytesIO
-from pathlib import Path
-PDF_STORAGE_PATH = Path("data/facturas")
-PDF_STORAGE_PATH.mkdir(parents=True, exist_ok=True)
+from backend.config import FACTURAS_DIR
+
 async def procesar_factura_completa_desde_url(url: str, save_pdf: bool = False) -> FacturaElectronicaCreate:
     """
     Orquesta el proceso de descarga y procesamiento, capturando resultados parciales y errores.
     """
     # 1. Descargar los datos iniciales (GET) y el PDF (POST)
-    http_downloader = ObtenerFactura(url=url)
-    pdf,msg_pdf =await http_downloader.descargar_pdf()
+    data_scraped,pdfRuta = await downloadFactura(url_factura=url,savePdf=save_pdf)
+    
 
     # Preparamos un diccionario con los datos que tenemos hasta ahora, incluyendo el estado.
     datos_factura = {
         "url": url,
-        "monto_total": http_downloader.monto or 0.0,
-        "empresa": http_downloader.comercio,
-        "nit_emisor": http_downloader.nitEmisor,
-        "n_factura": int(http_downloader.Nfactura) if http_downloader.Nfactura else None,
-        "status_Getrequest": http_downloader.statusGet,
-        "msg_get_request": http_downloader.msgGet,
-        "status_Postrequest": http_downloader.statusPost,
-        "msg_post_request": http_downloader.msgPost,
+        "monto_total": data_scraped.monto or 0.0,
+        "empresa": data_scraped.comercio,
+        "nit_emisor": data_scraped.nitEmisor,
+        "n_factura": int(data_scraped.nFactura) if data_scraped.nFactura else None,
+        "status_Getrequest": data_scraped.statusGet,
+        "msg_get_request": data_scraped.msgGet,
+        "status_Postrequest": data_scraped.statusPost,
+        "msg_post_request": data_scraped.msgPost,
         "save_pdf": save_pdf,
+        "fecha":data_scraped.get_datetime(),
+        "Nit_Beneficiario":data_scraped.nitBeneficiario
     }
 
     # 2. Si la descarga del PDF fue exitosa, intentamos procesarlo
-    if http_downloader.statusPost:
-        pdf_bytes = pdf
-        pdf_processor = await ProcesadorPDF_Rollo.crear(BytesEntrada=BytesIO(pdf_bytes), Modo=1)
+    if data_scraped.statusPost and save_pdf:
+        pdf_bytes = None
+        with open(pdfRuta, 'rb') as f:
+            pdf_read = f.read()
+
+        # Paso 2: Cargar los bytes en un objeto BytesIO
+        pdf_bytes = BytesIO(pdf_read)
+        pdf_processor = await ProcesadorPDF_Rollo.crear(BytesEntrada=pdf_bytes, Modo=1)
         
-        # Agregamos los datos extraídos del PDF
-        nombre_archivo=http_downloader.comercio+"_"+pdf_processor.get_datetime().strftime("%Y-%m-%d")+"_factN_"+str(http_downloader.Nfactura)+".pdf"
-        ruta=PDF_STORAGE_PATH / nombre_archivo
+        # Agregamos los datos extraídos del PDFsa
+        
+        
+        
 
         datos_factura.update({
-            "Nit_Beneficiario": pdf_processor.get_nit_beneficiario(),
-            "fecha": pdf_processor.get_datetime(),
+            # "Nit_Beneficiario": pdf_processor.get_nit_beneficiario(),
+            # "fecha": pdf_processor.get_datetime(),
             "detalles": pdf_processor.get_detalle(),
             "monto_fiscal": pdf_processor.get_monto_fiscal(),
             "factura_especial": pdf_processor.facturaEspecial,
             "status_PDFrequest": all(valor[1] for valor in pdf_processor.get_controlador().values()),
             "msg_pdf_request": pdf_processor.get_controlador(),
-            "pdfIO":str(ruta )if save_pdf else None
+            "pdfIO":str(pdfRuta)if save_pdf else None
 
         })
-        if save_pdf:
-            with open(ruta, "wb") as f:
-                f.write(pdf_bytes)
+
         
         
     else:
