@@ -8,7 +8,13 @@ import datetime
 from playwright.async_api import async_playwright
 import re
 from urllib.parse import urlparse, parse_qs
-from backend.config import FACTURAS_DIR
+try:
+    from backend.config import FACTURAS_DIR
+except:
+    import sys
+    import os
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from config import FACTURAS_DIR
 from pathlib import Path
 url_scraper="https://siat.impuestos.gob.bo/consulta/QR?nit=320876029&cuf=15F489E0D6750AAA8211EC26FF7AA7CA40D92202E7927ABFE56971F74&numero=43163&t=1"
 poison_script = """
@@ -85,10 +91,8 @@ class ResponseModel:
         self.comercio = None
         self.monto =0.0
         self.estado_fact_url=None  # valida o invalida no esta en la factura
-        self.statusGet=None 
-        self.msgGet=None
-        self.statusPost=None# falta
-        self.msgPost=None# falta
+        self.status=None 
+        self.complete=False
         self.nitEmisor=None
         self.nFactura=None
         self.cuf=None
@@ -99,7 +103,7 @@ class ResponseModel:
         validez=f"'Factura Valida':{self.estado_fact_url} Fecha:{self.fecha}"
         com=f"'Comercio ':{self.comercio} 'NIT':{self.nitEmisor} 'Numero Factura':{self.nFactura}"
         cliente=f"a Nombre de {self.nombreBeneficiario} NIT:{self.nitBeneficiario} MONTO:{self.monto} "
-        extradata=f"GET:{self.statusGet} , {self.msgGet}\nPOST:{self.statusPost} , {self.msgPost}\n CUF:{self.cuf}"
+        extradata=f"status:{self.status} , Complete:{self.complete}\n CUF:{self.cuf}"
 
         div1="#########################FACTURA#############################################"
         div2="#########################COMERCIO############################################"
@@ -121,10 +125,8 @@ class ResponseModel:
         "comercio" : self.comercio,
         "monto" :self.monto,
         "estado_fact_url":self.estado_fact_url,  # valida o invalida no esta en la factura
-        "statusGet":self.statusGet,
-        "msgGet":self.msgGet,
-        "statusPost":self.statusPost,# falta
-        "msgPost":self.statusPost,# falta
+        "status":self.status,
+        "complete":self.complete,
         "nitEmisor":self.nitEmisor,
         "nFactura":self.nFactura,
         "cuf" :self.cuf,
@@ -133,6 +135,8 @@ class ResponseModel:
         "nombreBeneficiario":self.nombreBeneficiario
             }
 response_model=ResponseModel()
+
+
 
 
 class ScraperError(Exception):
@@ -236,8 +240,8 @@ async def downloadFactura(url_factura=url_scraper,
             if await error_locator.is_visible():
                 raise GETRequestError("Factura incorrecta verifique url")
                 
-            response_model.statusGet=True
-            response_model.msgGet="Succes"
+            
+            response_model.status="Factura Correcta... extrayendo data"
             print("✅ ¡Éxito! La página cargó, las defensas fueron neutralizadas.")
             # verificamos el mat-card esto podria cambiar despues atento al sitio 
             try:
@@ -248,9 +252,9 @@ async def downloadFactura(url_factura=url_scraper,
             scraper=getScrapp(html_content)
             data=scraper[0]
             if data:
-                print("exxtraccion exitosa ")
-                for key, value in data.items():
-                    print(f"{key}: {value}")
+                # print("exxtraccion exitosa ")
+                # for key, value in data.items():
+                #     print(f"{key}: {value}")
                 response_model.nFactura=int(data["numero_factura"])
                 response_model.cuf=data["cuf"]
                 response_model.fecha=data["fecha_emision"]
@@ -262,10 +266,10 @@ async def downloadFactura(url_factura=url_scraper,
                 response_model.nitBeneficiario=data["documento_cliente"]
 
             else:
-                raise ScraperError(f"Error en scrapping {scraper[1]}")
+                raise ScraperError(f" {scraper[1]}")
             
-            response_model.statusPost=True
-            response_model.msgPost="Succes"
+            
+            response_model.status=f"factura valida, datos extraidos guardar pdf:{savePdf}"
             # validar????? no lo se 
 
             if savePdf:
@@ -298,36 +302,35 @@ async def downloadFactura(url_factura=url_scraper,
 
                     await download.save_as(file_path)
                     pdf_io=file_path
-                    print(f"🎉 ¡PDF descargado con éxito! Guardado como: {file_path}")
+                
+                    print(f"🎉 ¡PDF descargado con éxito! fin automatizacion Guardado como: {file_path}")
                 except Exception as e:
-                    raise PDFRequestError(f"error al descargar pdf {e}")
-            
+                    raise PDFRequestError(e)
+            response_model.complete=True
+            response_model.status="Complete"
+            print("🎉✅ ¡Éxito! completo.")
             # return response_model,pdf_io
         except GETRequestError as e:
-            print(f"Error GET: {e}")
-            response_model.msgGet=f"Error GET: {str(e)}"
-            response_model.statusGet=False
+            print(f"Error: {e}")
+            response_model.status=f"{str(e)}"
+            response_model.complete=False
         except ScraperError as e:
             print(f"Error scrapping: {e}")
-            response_model.msgPost=f"Error Scrapping: {str(e)}"
-            response_model.statusPost=False
+            response_model.status=f"Error Scrapping: {str(e)}"
+            response_model.complete=False
             
         except PDFRequestError as e :
-            response_model.msgPost=f"Error PDF: {str(e)}"
-            response_model.statusPost=False
+            response_model.status=f"Error al descargar PDF: {str(e)}"
+            response_model.complete=False
             
         except Exception as e:
             print(f"❌ Ocurrió un error: {e}")
-            response_model.msgPost=f"Error desconocido: {str(e)}"
-            response_model.statusPost=False
-            response_model.msgGet=f"Error desconocido: {str(e)}"
-            response_model.statusGet=False
+            response_model.status=f"Error desconocido: {str(e)}"
+            response_model.complete=False
         except KeyboardInterrupt :
             print(f"❌ keyboard interrupt: ")
-            response_model.msgPost=f"se cancelo manualmente"
-            response_model.statusPost=False
-            response_model.msgGet=f"se cancelo manualmente"
-            response_model.statusGet=False
+            response_model.status=f"se cancelo manualmente"
+            response_model.complete=False
 
         finally:
             print("La automatización ha terminado")

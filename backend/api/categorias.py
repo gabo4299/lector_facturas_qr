@@ -33,7 +33,7 @@ async def leer_categoria(categoria_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{categoria_id}", response_model=schemas.Categoria, tags=["categoria"])
-async def actualizar_categoria_manual(categoria_id: int, categoria: schemas.Categoria, db: AsyncSession = Depends(get_db)):
+async def actualizar_categoria_manual(categoria_id: int, categoria: schemas.CategoriaCreate, db: AsyncSession = Depends(get_db)):
     """
     Actualiza categoria  por su ID.
     """

@@ -6,6 +6,11 @@ from typing import Optional, List
 from typing import Literal 
 
 
+
+class ProyectoResumen(BaseModel):
+    monto_total: float
+    # En el futuro, podrías añadir más campos aquí:
+    # cantidad_facturas: int
 class CategoriaBase(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
@@ -44,6 +49,14 @@ class Batch(BatchBase):
     proyecto_id: int
     class Config: from_attributes = True
 
+class BatchResumen(BaseModel):
+    # Usamos el schema 'Batch' existente para mostrar los datos del batch
+    batch_info: Batch
+    monto_total_batch: float = 0.0
+
+    class Config:
+        from_attributes = True
+        
 class UserBase(BaseModel):
     email: EmailStr
     name:Optional[str]=None
@@ -124,6 +137,9 @@ class FacturaManualUpdate(BaseModel):
     fecha: Optional[datetime] = None
     nit_emisor: Optional[str] = None # Para cambiar/asignar la empresa
     categoria_id: Optional[int] = None ## ver esto para despues
+    batch_id: Optional[int] = None
+
+
 
 
 class FacturaManual(FacturaManualBase):
@@ -160,8 +176,8 @@ class FacturaElectronicaBase(BaseModel):
     #  aqui nos recomendaron 
     # empresa: Optional[str] = None
     # mejor solo un status mas limmpio 
-    status: str = "pendiente"
-    complete:bool=False
+    status: Optional[str] = "pendiente"
+    complete:Optional[bool]=False
     # status_Getrequest:Optional[bool]=False
     # status_Postrequest:Optional[bool]=False
     # status_PDFrequest:Optional[bool]=False
@@ -184,7 +200,13 @@ class FacturaElectronicaCreate(FacturaElectronicaBase):
     categoria_id: Optional[int] = None
     batch_id: Optional[int] = None
     
-
+class FacturaElectronicaCreateScrapping(FacturaElectronicaBase):
+    nit_emisor: Optional[str] = None
+    empresa:Optional[str] = None
+    proyecto_id: int
+    categoria_id: Optional[int] = None
+    batch_id: Optional[int] = None
+    
 
 class FacturaElectronica(FacturaElectronicaBase):
     id: int
@@ -206,6 +228,13 @@ class FacturaElectronicaUpdate(BaseModel):
     batch_id: Optional[int] = None
 
 
+
+class FacturasDelProyectoResponse(BaseModel):
+    """
+    Schema para la respuesta que agrupa las facturas de un proyecto.
+    """
+    facturas_manuales: List[FacturaManual]
+    facturas_electronicas: List[FacturaElectronica]
 
 
 # Nuevo schema para la gestión de miembros

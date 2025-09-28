@@ -6,13 +6,33 @@ from backend.crud import crud_facturas_manuales,crud_proyecto
 from backend.schemas import schemas
 from backend.db import models
 from backend.db.database import engine, AsyncSessionLocal
-from datetime import timezone
+from datetime import timezone ,datetime
 router = APIRouter()
 
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
 
+
+def parse_fecha(fecha_str):
+    # Intentamos analizar la fecha en varios formatos posibles
+    try:
+        # Fecha sin hora (solo "2025-06-27")
+        return datetime.strptime(fecha_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        pass
+    
+    try:
+        # Fecha con hora en formato ISO (ej. "2025-06-27T04:00:00")
+        return datetime.fromisoformat(fecha_str).astimezone(timezone.utc)
+    except ValueError:
+        pass
+    
+    try:
+        # Fecha con zona horaria explícita (ej. "2025-06-27T04:00:00+02:00")
+        return datetime.fromisoformat(fecha_str).astimezone(timezone.utc)
+    except ValueError:
+        pass
 @router.post("/manuales/", response_model=schemas.FacturaManual, status_code=201)
 async def crear_factura_manual(factura: schemas.FacturaManualCreate, 
                                db: AsyncSession = Depends(get_db),
@@ -34,6 +54,7 @@ async def crear_factura_manual(factura: schemas.FacturaManualCreate,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La factura debe tener una fecha para ser registrada en un proyecto."
         )
+    
     if not (proyecto.fecha_inicio <= factura.fecha.replace(tzinfo=timezone.utc) <= proyecto.fecha_fin):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,7 +98,7 @@ async def actualizar_factura_manual(factura_id: int,
 
     if factura.fecha != None:
         
-        if not (proyecto.fecha_inicio <= factura.fecha.replace(tzinfo=timezone.utc) <= proyecto.fecha_fin):
+        if not (proyecto.fecha_inicio <= parse_fecha(factura.fecha.isoformat()) <= proyecto.fecha_fin):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"La fecha de la factura ({factura.fecha.date()}) está fuera del rango del proyecto ({proyecto.fecha_inicio.date()} al {proyecto.fecha_fin.date()})."

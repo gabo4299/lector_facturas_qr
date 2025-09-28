@@ -223,23 +223,23 @@ class ProcesadorPDF_Rollo():
                         # print("numeros encotnrados ",numeros_encontrados," en la " , sublista[-1])
                         arr_new=[0,0,0,0]
                         if len(numeros_encontrados) == 4:
-                            cantidad = float(numeros_encontrados[0].replace(',', ''))
-                            precio_unitario = float(numeros_encontrados[1].replace(',', ''))
+                            cantidad = float(numeros_encontrados[1].replace(',', ''))
+                            precio_unitario = float(numeros_encontrados[0].replace(',', ''))
                             descuento = float(numeros_encontrados[2].replace(',', ''))
                             total = float(numeros_encontrados[3].replace(',', ''))
                             arr_new=[cantidad,precio_unitario,descuento,total]
                         if len(numeros_encontrados) ==1 :
                             numeros_encontrados2=re.findall(self.regexNumeros,  sublista[-2])
-                            cantidad = float(numeros_encontrados2[0].replace(',', ''))
-                            precio_unitario = float(numeros_encontrados2[1].replace(',', ''))
+                            cantidad = float(numeros_encontrados2[1].replace(',', ''))
+                            precio_unitario = float(numeros_encontrados2[0].replace(',', ''))
                             descuento = float(numeros_encontrados2[2].replace(',', ''))
                             total = float(numeros_encontrados[0].replace(',', ''))
                             arr_new=[cantidad,precio_unitario,descuento,total]
                         else:
                             numeros_encontrados = re.findall(self.regexNumeros,  sublista[-2])
                             if len(numeros_encontrados) == 4:
-                                cantidad = float(numeros_encontrados[0].replace(',', ''))
-                                precio_unitario = float(numeros_encontrados[1].replace(',', ''))
+                                cantidad = float(numeros_encontrados[1].replace(',', ''))
+                                precio_unitario = float(numeros_encontrados[0].replace(',', ''))
                                 descuento = float(numeros_encontrados[2].replace(',', ''))
                                 total = float(numeros_encontrados[3].replace(',', ''))
                                 arr_new=[cantidad,precio_unitario,descuento,total]

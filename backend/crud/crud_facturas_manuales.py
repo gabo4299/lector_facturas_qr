@@ -1,4 +1,5 @@
 # crud_facturas_manuales.py
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from backend.db.models import FacturaManual,Proyecto,ProyectoUsuario
@@ -61,6 +62,17 @@ async def create_factura_manual(db: AsyncSession, factura: FacturaManualCreate):
     await db.refresh(db_factura)
     return await get_factura_manual(db, factura_id=db_factura.id)
 
+
+async def get_facturas_manuales_por_proyecto(db: AsyncSession, proyecto_id: int) -> List[FacturaManual]:
+    """Obtiene todas las facturas manuales de un proyecto, con sus relaciones."""
+    query = select(FacturaManual).options(
+        joinedload(FacturaManual.categoria),
+        joinedload(FacturaManual.batch),
+        joinedload(FacturaManual.empresa)
+    ).filter(FacturaManual.proyecto_id == proyecto_id)
+    
+    result = await db.execute(query)
+    return result.unique().scalars().all()
 async def update_factura_manual(db: AsyncSession, factura_id: int, 
                                 factura_update: FacturaManualUpdate):
     """

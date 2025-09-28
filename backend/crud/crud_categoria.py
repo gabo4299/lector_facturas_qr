@@ -18,7 +18,7 @@ async def get_categorias(db: AsyncSession, skip: int = 0, limit: int = 100):
 async def create_categoria(db: AsyncSession, categoria: schemas.CategoriaCreate):
     """Crea un nuevo categoria."""
 
-    db_categoria = models.categoria(**categoria.model_dump())
+    db_categoria = models.Categoria(**categoria.model_dump())
     
     db.add(db_categoria)
     await db.commit()
@@ -27,7 +27,7 @@ async def create_categoria(db: AsyncSession, categoria: schemas.CategoriaCreate)
 
 async def update_categoria(db: AsyncSession, categoria_id: int, categoria_update: schemas.CategoriaCreate):
     '''update categoria'''
-    db_categoria = await get_categoria(db, categoria_id==categoria_id )
+    db_categoria = await get_categoria(db, categoria_id=categoria_id )
     if not db_categoria:
         return None 
 
@@ -55,3 +55,30 @@ async def delete_categoria(db: AsyncSession, categoria_id: int):
     await db.delete(db_categoria) 
     await db.commit() 
     return db_categoria 
+
+
+async def get_categoria_by_name(db:AsyncSession, name:str):
+    result = await db.execute(select(models.Categoria).filter(models.Categoria.nombre == name))
+    return result.scalar_one_or_none()
+
+
+async def get_or_create_categoria(db: AsyncSession, name: str,description:str="") -> models.Categoria:
+    """
+    Busca una empresa por su NIT. Si no existe, la crea.
+    """
+    db_categoria = await get_categoria_by_name(db, name=name)
+    
+    if db_categoria:
+        return db_categoria
+
+    # Si no existe, la creamos
+   
+    
+    nueva_categoria = models.Categoria(
+        descripcion=description,
+        nombre=name
+    )
+    db.add(nueva_categoria)
+    await db.commit()
+    await db.refresh(nueva_categoria)
+    return nueva_categoria

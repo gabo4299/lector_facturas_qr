@@ -1,3 +1,6 @@
+from collections import defaultdict
+from sqlalchemy import func, or_
+from backend.crud import crud_categoria
 from backend.db import models
 from backend.schemas import  schemas 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,6 +103,90 @@ async def update_proyecto(
     return await get_proyecto(db, proyecto_id=db_proyecto.id)
 
 
+
+async def get_suma_total_proyecto(db: AsyncSession, proyecto_id: int,filtro_categoria:str="Invalidas"):
+    """
+    Calcula la suma de los montos de todas las facturas (manuales y electrónicas)
+    de un proyecto específico directamente en la base de datos.
+    """
+    # Suma para facturas manuales
+    cat=await crud_categoria.get_or_create_categoria(db,filtro_categoria)
+    
+    query_manual = select(func.sum(models.FacturaManual.monto_total)).filter(
+        models.FacturaManual.proyecto_id == proyecto_id
+        
+    )
+    result_manual = await db.execute(query_manual)
+    total_manual = result_manual.scalar_one_or_none() or 0.0
+
+    # Suma para facturas electrónicas
+    # print("\n\n\n\n el cat de factura es ")
+    # 🚩
+    query_electronica = select(func.sum(models.FacturaElectronica.monto_total)).filter(
+        models.FacturaElectronica.proyecto_id == proyecto_id
+        , or_(
+        models.FacturaElectronica.categoria_id != cat.id,
+        models.FacturaElectronica.categoria_id == None)
+    )
+    result_electronica = await db.execute(query_electronica)
+    total_electronica = result_electronica.scalar_one_or_none() or 0.0
+
+    return total_manual + total_electronica
+
+
+async def get_resumen_batches_por_proyecto(db: AsyncSession, proyecto_id: int,filtro_categoria="Invalidas") -> list:
+    """
+    Calcula la suma de los montos de las facturas para cada batch
+    dentro de un proyecto específico.
+    """
+    # Usaremos un diccionario para sumar los totales de ambas tablas de facturas
+    # defaultdict es útil porque crea una entrada con 0.0 si la clave no existe
+    sumas_por_batch = defaultdict(float)
+
+    # Consulta para sumar facturas manuales por batch
+    query_manual = (
+        select(models.FacturaManual.batch_id, func.sum(models.FacturaManual.monto_total))
+        .filter(models.FacturaManual.proyecto_id == proyecto_id)
+        .filter(models.FacturaManual.batch_id.is_not(None)) # Ignoramos las que no tienen batch
+        .group_by(models.FacturaManual.batch_id)
+    )
+    result_manual = await db.execute(query_manual)
+    for batch_id, suma in result_manual.all():
+        sumas_por_batch[batch_id] += suma
+    cat=await crud_categoria.get_or_create_categoria(db,filtro_categoria)
+    # Consulta para sumar facturas electrónicas por batch
+    # 🚩
+    query_electronica = (
+        select(models.FacturaElectronica.batch_id, func.sum(models.FacturaElectronica.monto_total))
+        .filter(models.FacturaElectronica.proyecto_id == proyecto_id)
+        .filter(models.FacturaElectronica.batch_id.is_not(None))
+        .filter(or_(
+                models.FacturaElectronica.categoria_id != cat.id,
+                models.FacturaElectronica.categoria_id == None
+            ))
+        .group_by(models.FacturaElectronica.batch_id)
+    )
+    result_electronica = await db.execute(query_electronica)
+    for batch_id, suma in result_electronica.all():
+        sumas_por_batch[batch_id] += suma
+    
+    # Ahora, obtenemos los objetos completos de los batches para la respuesta
+    if not sumas_por_batch:
+        return []
+
+    query_batches = select(models.Batch).filter(models.Batch.id.in_(sumas_por_batch.keys()))
+    result_batches = await db.execute(query_batches)
+    batches_obj = result_batches.scalars().all()
+
+    # Combinamos los objetos Batch con sus sumas calculadas
+    resumen_final = []
+    for batch in batches_obj:
+        resumen_final.append({
+            "batch_info": batch,
+            "monto_total_batch": sumas_por_batch.get(batch.id, 0.0)
+        })
+
+    return resumen_final
 
 async def delete_proyecto(db: AsyncSession, proyecto_id: int):
     """

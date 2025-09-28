@@ -1,15 +1,18 @@
 from .NewSiatdescargaPDF import downloadFactura
 from .processPDF import ProcesadorPDF_Rollo
 # from FacturaOb import FacturaElectronica
-from backend.schemas import DetalleItem,FacturaElectronicaCreate
+from backend.schemas import DetalleItem,FacturaElectronicaCreate,FacturaElectronicaCreateScrapping
 
 from backend.crud import crud_facturas_electronicas
 from backend.db.database import AsyncSessionLocal
 import asyncio
 from io import BytesIO
 from backend.config import FACTURAS_DIR
-
-async def procesar_factura_completa_desde_url(url: str, save_pdf: bool = False) -> FacturaElectronicaCreate:
+class FacturaValidationError(Exception):
+    """Clase base para errores de este scraper."""
+    pass
+async def procesar_factura_completa_desde_url(url: str,
+                                                save_pdf: bool = False) -> FacturaElectronicaCreate:
     """
     Orquesta el proceso de descarga y procesamiento, capturando resultados parciales y errores.
     """
@@ -25,17 +28,15 @@ async def procesar_factura_completa_desde_url(url: str, save_pdf: bool = False) 
         "empresa": data_scraped.comercio,
         "nit_emisor": data_scraped.nitEmisor,
         "n_factura": int(data_scraped.nFactura) if data_scraped.nFactura else None,
-        "status_Getrequest": data_scraped.statusGet,
-        "msg_get_request": data_scraped.msgGet,
-        "status_Postrequest": data_scraped.statusPost,
-        "msg_post_request": data_scraped.msgPost,
+        "status": data_scraped.status,
+        "complete": data_scraped.complete,
         "save_pdf": save_pdf,
         "fecha":data_scraped.get_datetime(),
         "Nit_Beneficiario":data_scraped.nitBeneficiario
     }
 
     # 2. Si la descarga del PDF fue exitosa, intentamos procesarlo
-    if data_scraped.statusPost and save_pdf:
+    if data_scraped.complete and save_pdf:
         pdf_bytes = None
         with open(pdfRuta, 'rb') as f:
             pdf_read = f.read()
@@ -55,47 +56,77 @@ async def procesar_factura_completa_desde_url(url: str, save_pdf: bool = False) 
             "detalles": pdf_processor.get_detalle(),
             "monto_fiscal": pdf_processor.get_monto_fiscal(),
             "factura_especial": pdf_processor.facturaEspecial,
-            "status_PDFrequest": all(valor[1] for valor in pdf_processor.get_controlador().values()),
-            "msg_pdf_request": pdf_processor.get_controlador(),
             "pdfIO":str(pdfRuta)if save_pdf else None
 
         })
 
         
         
-    else:
-        # Si la descarga del PDF falló, llenamos los campos restantes con valores por defecto
-        datos_factura["status_PDFrequest"] = False
-        datos_factura["msg_pdf_request"] = {"error": "No se pudo descargar el PDF para procesarlo."}
 
 
     # 3. Creamos el objeto Pydantic final con todos los datos recopilados
-    factura_final = FacturaElectronicaCreate(**datos_factura)
+    # antes de crear se debe hacer validaciones de empresa y fechas 
+    # aquimequede
+    #= despues de comprobar nit 
+    
+    
+    # print(f"lo que se crea es {datos_factura}")
 
-    return factura_final
+    # factura_final = FacturaElectronicaCreateScrapping(**datos_factura,proyecto_id=proyect_id)
+
+    return datos_factura
 
 
 # --- Tarea para BackgroundTasks (como vimos antes) ---
 
-async def tarea_de_scraping_y_actualizacion(factura_id: int, url: str,savePdf:bool=False):
+async def tarea_de_scraping_y_actualizacion(factura_id: int, url: str,proyect_id:int,savePdf:bool=False):
+    
     """
     Tarea en segundo plano que usa el nuevo servicio.
     """
     print(f"Tarea en segundo plano iniciada para factura ID: {factura_id}")
     try:
         # 1. Llama a la función orquestadora para obtener el objeto Pydantic completo
-        datos_completos = await procesar_factura_completa_desde_url(url=url,save_pdf=savePdf)
-        
+
+        datos_factura = await procesar_factura_completa_desde_url(url=url,save_pdf=savePdf)
+        # print("\n \n \n \n  aqui estan los datos",datos_factura)
         # 2. Crea una nueva sesión de DB
         async with AsyncSessionLocal() as db:
             # 3. Llama al CRUD para actualizar la factura
            db_fact_update= await crud_facturas_electronicas.update_factura_desde_scraping(
                 db=db, 
                 factura_id=factura_id, 
-                datos_completos=datos_completos
+                datos_completos=FacturaElectronicaCreateScrapping(**datos_factura,proyecto_id=proyect_id)
             )
-        print(f"Tarea en segundo plano completada para factura ID: {factura_id}, empresa encontra:{datos_completos.empresa}  get_status:{datos_completos.status_Getrequest}, post_status:{datos_completos.status_Postrequest} ")
+        
         return db_fact_update
+
     except Exception as e:
         print(f"Error en la tarea en segundo plano para factura ID {factura_id}: {e}")
         # Aquí podrías actualizar la factura con un estado de "error"
+
+
+# async def actualizacionFactuas (filtro=""):
+#     try:
+#         async with AsyncSessionLocal() as db:
+#             print("empezando con ",db)
+#             lista_facturas=await crud_facturas_electronicas.get_facturas_incompletas(db)
+#             for i in lista_facturas:
+#                 print("\n\n\n\n\n\n\n",i,i.complete,i.empresa,i.url,i.monto_fiscal,i.status)
+#                 # mientras veremos el montofiscal sea = 0.0
+#                 # falta la validacion 
+#                 await asyncio.sleep(4)
+#                 datos_factura = await procesar_factura_completa_desde_url(url=i.url,save_pdf=i.save_pdf)
+#                 db_fact_update= await crud_facturas_electronicas.update_factura_desde_scraping(
+#                     db=db, 
+#                     factura_id=i.id, 
+#                     datos_completos=FacturaElectronicaCreateScrapping(**datos_factura,proyecto_id=i.proyecto_id)
+#                 )
+#         return True
+#     except Exception as e:
+#         print ("\n\n\n\n Error al momento de actualizar las faltantes ",e)
+#         return False
+
+if __name__ == '__main__':
+    # asyncio.run(actualizacionFactuas())
+    pass

@@ -122,8 +122,8 @@ class FacturaElectronica(Base):
     # empresa = Column(String, nullable=True)
     # nit_emisor = Column(String, nullable=True)
     factura_especial = Column(Boolean, default=False)
-    status: str = "pendiente"
-    complete:bool=False
+    status = Column(String, default="pendiente")
+    complete= Column(Boolean, default=False)
     pdfIO=Column(String,nullable=True)
     save_pdf=Column(Boolean,default=False)
     # batch = Column(Integer, nullable=True, index=True)

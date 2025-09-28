@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException,status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException,status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from backend.crud import crud_proyecto
+from backend.crud import crud_categoria, crud_facturas_electronicas, crud_facturas_manuales, crud_proyecto
 from backend.schemas import schemas
 from backend.db import models
 from backend.api import auth
 from backend.db.database import engine, AsyncSessionLocal
+from backend.services import factura_service
 
 router = APIRouter()
 
@@ -70,6 +71,121 @@ async def leer_proyecto(
     return proyecto
 
 
+
+
+@router.get("/{proyecto_id}/resume",response_model=schemas.ProyectoResumen)
+async def sumar_proyecto(
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"]))
+    ,db: AsyncSession = Depends(get_db)
+):
+    """devuelve la suma de las facturas"""
+    monto_total= await crud_proyecto.get_suma_total_proyecto(db=db,proyecto_id=proyecto.id)
+    return  {"monto_total": monto_total}
+
+@router.get("/{proyecto_id}/detalle_batch", response_model=List[schemas.BatchResumen], tags=["Análisis de Proyectos"])
+async def obtener_detalle_de_batches(
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"])),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Devuelve una lista de todos los batches dentro de un proyecto,
+    cada uno con la suma total de sus facturas asociadas.
+    """
+    resumen_batches = await crud_proyecto.get_resumen_batches_por_proyecto(db=db, proyecto_id=proyecto.id)
+    return resumen_batches
+
+
+@router.get("/{proyecto_id}/facturas",response_model=schemas.FacturasDelProyectoResponse, tags=["Proyectos"])
+async def obtener_detalle_de_batches(
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"])),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+        Devuelve dos listas separadas: una con las facturas manuales y otra con las electrónicas
+        que pertenecen a un proyecto específico.
+        """
+    # 1. Obtenemos las facturas manuales usando la nueva función CRUD
+    facturas_manuales = await crud_facturas_manuales.get_facturas_manuales_por_proyecto(db=db, proyecto_id=proyecto.id)
+
+    # 2. Obtenemos las facturas electrónicas
+    facturas_electronicas = await crud_facturas_electronicas.get_facturas_electronicas_por_proyecto(
+        db=db, proyecto_id=proyecto.id
+    )
+
+    # 3. Devolvemos el diccionario con la estructura que espera el response_model
+    return {
+        "facturas_manuales": facturas_manuales,
+        "facturas_electronicas": facturas_electronicas
+    }
+
+@router.get("/{proyecto_id}/check_facturas")
+async def hacerCheckfacturas(
+    background_tasks: BackgroundTasks,
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"])),
+    db: AsyncSession = Depends(get_db),
+   # Inyectamos la dependencia
+):
+    """
+        hace un check a todas las facturas electronicas que no sean invalidas y no esten completas
+        """
+    facturas_encoladas = await crud_facturas_electronicas.obtener_y_bloquear_facturas_para_procesar(
+        db=db, 
+        proyecto_id=proyecto.id
+    )
+    for i in facturas_encoladas:
+            background_tasks.add_task(
+                factura_service.tarea_de_scraping_y_actualizacion, # La función a ejecutar AQUI SE DA LOS ERRORES DE FECHA Y ETC
+                factura_id=i.id, # Argumentos para la función
+                url=i.url,
+                proyect_id=i.proyecto_id,
+                savePdf=i.save_pdf
+            )
+            
+
+
+
+    
+    return {
+        "mensaje": f"Se han puesto en cola {len(facturas_encoladas)} facturas para su verificación.",
+        "facturas_en_cola": [f.id for f in facturas_encoladas]
+    }
+
+@router.get("/{proyecto_id}/check_facturas_forced")
+async def hacerCheckForcedfacturas(
+    background_tasks: BackgroundTasks,
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño"])),
+    db: AsyncSession = Depends(get_db),
+   # Inyectamos la dependencia
+):
+    """
+        hace un check a todas las facturas electronicas que no sean invalidas y no esten completas
+        """
+    facturas_encoladas = await crud_facturas_electronicas.get_facturas_electronicas_por_proyecto(
+        db=db, 
+        proyecto_id=proyecto.id
+    )
+    lista_f=[models.FacturaElectronica]
+    for i in facturas_encoladas:
+            if i.complete!=True:
+
+                new_fac=await crud_facturas_electronicas.bloquear_factura(db=db,factura_id=i.id)
+                lista_f.append(new_fac)
+                background_tasks.add_task(
+                    factura_service.tarea_de_scraping_y_actualizacion, # La función a ejecutar AQUI SE DA LOS ERRORES DE FECHA Y ETC
+                    factura_id=i.id, # Argumentos para la función
+                    url=i.url,
+                    proyect_id=i.proyecto_id,
+                    savePdf=i.save_pdf
+                )
+            
+
+
+
+    
+    return {
+        "mensaje": f"Se han puesto en cola {len(lista_f)} facturas para su verificación.",
+        "facturas_en_cola": [f.id for f in lista_f]
+    }
 
 @router.put("/{proyecto_id}", response_model=schemas.Proyecto)
 async def actualizar_proyecto(
