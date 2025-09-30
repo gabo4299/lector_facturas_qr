@@ -1,6 +1,6 @@
 from collections import defaultdict
 from sqlalchemy import func, or_
-from backend.crud import crud_categoria
+from backend.crud import crud_categoria,crud_batch
 from backend.db import models
 from backend.schemas import  schemas 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -187,6 +187,15 @@ async def get_resumen_batches_por_proyecto(db: AsyncSession, proyecto_id: int,fi
         })
 
     return resumen_final
+
+async def get_batches_por_proyecto(db: AsyncSession, proyecto_id: int) -> list:
+    """
+    Calcula la suma de los montos de las facturas para cada batch
+    dentro de un proyecto específico.
+    """
+    
+
+    return await crud_batch.get_batchs_by_proyect(db,proyecto_id)
 
 async def delete_proyecto(db: AsyncSession, proyecto_id: int):
     """

@@ -124,5 +124,5 @@ async def delete_factura_manual(db: AsyncSession, factura_id: int):
 
     await db.delete(db_factura) 
     await db.commit() 
-    return await get_factura_manual(db, factura_id=db_factura.id)
+    return db_factura
 

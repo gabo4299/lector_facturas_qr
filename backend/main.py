@@ -1,8 +1,21 @@
 # main.py
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware # 👈 1. Importa CORSMiddleware
+
 from backend.api import facturas_manuales, facturas_electronicas,auth,proyectos,usuarios,categorias,empresas,batch
 app = FastAPI()
 
+# 🚩 falta buscar batch por nombre y proyecto para no sobreescribir 
+# 🚩 falta ver el scremas create facturaManual aver si revcibe nombre de empresa
+origins = "*"
+# 👇 3. Añade el middleware a tu aplicación.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Permite los orígenes especificados
+    allow_credentials=True, # Permite cookies/credenciales
+    allow_methods=["*"],    # Permite todos los métodos (GET, POST, etc.)
+    allow_headers=["*"],    # Permite todas las cabeceras
+)
 # Incluye el router de facturas en la aplicación principal
 app.include_router(
     facturas_manuales.router,
@@ -16,11 +29,11 @@ app.include_router(
     tags=["Facturas Electronicas"]      # Agrupa estos endpoints en la documentación
 )
 
-app.include_router(
-    facturas_electronicas.router,
-    prefix="/facturas", # Añade un prefijo a todas las rutas del router
-    tags=["Facturas Electronicas"]      # Agrupa estos endpoints en la documentación
-)
+# app.include_router(
+#     facturas_electronicas.router,
+#     prefix="/facturas", # Añade un prefijo a todas las rutas del router
+#     tags=["Facturas Electronicas"]      # Agrupa estos endpoints en la documentación
+# )
 app.include_router(
     auth.router,
     prefix="/auth", # Añade un prefijo a todas las rutas del router

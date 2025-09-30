@@ -16,7 +16,11 @@ async def get_db():
 @router.post("/", response_model=schemas.Batch, status_code=201)
 async def crear_batch(batch: schemas.BatchCreate, db: AsyncSession = Depends(get_db)):
     # print("entro a post ",factura.model_dump())
-    return await crud_batch.create_batch(db=db, batch=batch)
+    batch=await crud_batch.create_batch(db=db, batch=batch)
+    if batch:
+        return batch
+    else:
+        raise HTTPException(status_code=409, detail="batch existente para este proyecto")
 
 @router.get("/", response_model=List[schemas.Batch])
 async def leer_batchs(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):

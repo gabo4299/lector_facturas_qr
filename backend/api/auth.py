@@ -31,7 +31,7 @@ async def login_for_access_token(
             detail="Email o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = auth.create_access_token(data={"sub": user.email})
+    access_token = auth.create_access_token(data={"sub": user.email,"fullName":user.name})
     return {"access_token": access_token, "token_type": "bearer"}
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):

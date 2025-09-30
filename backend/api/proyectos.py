@@ -94,9 +94,21 @@ async def obtener_detalle_de_batches(
     resumen_batches = await crud_proyecto.get_resumen_batches_por_proyecto(db=db, proyecto_id=proyecto.id)
     return resumen_batches
 
+@router.get("/{proyecto_id}/batch", response_model=List[schemas.Batch], tags=["lista de batch por proyecto"])
+async def obtener_batchs(
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"])),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Devuelve una lista de todos los batches dentro de un proyecto,
+    
+    """
+    resumen_batches = await crud_proyecto.get_batches_por_proyecto(db=db, proyecto_id=proyecto.id)
+    return resumen_batches
+
 
 @router.get("/{proyecto_id}/facturas",response_model=schemas.FacturasDelProyectoResponse, tags=["Proyectos"])
-async def obtener_detalle_de_batches(
+async def obtener_detalle_facturas(
     proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"])),
     db: AsyncSession = Depends(get_db)
 ):

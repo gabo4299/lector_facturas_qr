@@ -18,8 +18,13 @@ async def get_batchs(db: AsyncSession, skip: int = 0, limit: int = 100):
 async def create_batch(db: AsyncSession, batch: schemas.BatchCreate):
     """Crea un nuevo batch."""
 
-    db_batch = models.Batch(**batch.model_dump(exclude_unset=True))
+    data=batch.model_dump(exclude_unset=True)
+    print("\n\n\n\n\n\n esto llega",data)
+    db_batch = await get_batch_by_name_and_proyect(db, name=data["nombre"],proyect_id=data["proyecto_id"])
     
+    if db_batch:
+        return None
+    db_batch = models.Batch(**batch.model_dump(exclude_unset=True))
     db.add(db_batch)
     await db.commit()
     await db.refresh(db_batch)
@@ -48,7 +53,7 @@ async def delete_batch(db: AsyncSession, batch_id: int):
     elimina batch
     """
     # Busca la factura que se va a eliminar
-    db_batch = await get_batch(db, factura_id=batch_id)
+    db_batch = await get_batch(db, batch_id=batch_id)
     if not db_batch:
         return None # Retorna None si no se encontró
 
@@ -60,6 +65,11 @@ async def delete_batch(db: AsyncSession, batch_id: int):
 async def get_batch_by_name_and_proyect(db:AsyncSession, name:str,proyect_id:int):
     result = await db.execute(select(models.Batch).filter(models.Batch.nombre == name,models.Batch.proyecto_id==proyect_id))
     return result.scalar_one_or_none()
+
+
+async def get_batchs_by_proyect(db:AsyncSession,proyect_id:int):
+    result = await db.execute(select(models.Batch).filter(models.Batch.proyecto_id==proyect_id))
+    return result.scalars().all()
 
 
 async def get_or_create_batch(db: AsyncSession,proyect_id:int, name: str,description:str="") -> models.Batch:
