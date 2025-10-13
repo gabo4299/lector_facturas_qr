@@ -3,10 +3,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware # 👈 1. Importa CORSMiddleware
 
 from backend.api import facturas_manuales, facturas_electronicas,auth,proyectos,usuarios,categorias,empresas,batch
+import sys
+import asyncio
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 app = FastAPI()
 
-# 🚩 falta buscar batch por nombre y proyecto para no sobreescribir 
-# 🚩 falta ver el scremas create facturaManual aver si revcibe nombre de empresa
+
+# 🚩🚩🚩🚩🚩 atencion al procesar en pdf la factura si tiene una como ej 4,390.00 se omite el 4 gran error 
 origins = "*"
 # 👇 3. Añade el middleware a tu aplicación.
 app.add_middleware(

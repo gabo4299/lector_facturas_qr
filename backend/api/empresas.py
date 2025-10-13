@@ -26,6 +26,22 @@ async def leer_empresas(skip: int = 0, limit: int = 100,
     empresas = await crud_empresa.get_empresas(db, skip=skip, limit=limit)
     return empresas
 
+@router.get("/paginated", response_model=schemas.EmpresasPaginada)
+async def leer_empresas_paginacion(skip: int = 0, limit: int = 100, 
+                        db: AsyncSession = Depends(get_db),
+                        current_user: models.User = Depends(auth.get_current_active_user),
+                        search: str | None = None,
+                        page: int = 1,
+                        size: int = 10,
+                        sort_by: str = "id", # Por defecto ordena por id
+                        sort_order: str = "asc"):
+    
+    empresas = await crud_empresa.get_empresas_paginacion(db, search=search,page=page,size=size,sort_by=sort_by,sort_order=sort_order)
+
+    
+    
+    return empresas
+
 @router.get("/{empresa_id}", response_model=schemas.Empresa)
 async def leer_empresa(empresa_id: int, db: AsyncSession = Depends(get_db),
                        current_user: models.User = Depends(auth.get_current_active_user)):

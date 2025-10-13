@@ -1,5 +1,7 @@
 from collections import defaultdict
-from sqlalchemy import func, or_
+from datetime import datetime, time
+from sqlalchemy import and_, func, literal, or_, union_all
+from sqlalchemy.orm import aliased
 from backend.crud import crud_categoria,crud_batch
 from backend.db import models
 from backend.schemas import  schemas 
@@ -68,12 +70,25 @@ async def get_proyecto_by_name(db: AsyncSession, proyecto_name: str):
 
 async def get_proyectos_by_user(db: AsyncSession, propietario_id: int, skip: int = 0, limit: int = 100):
     """Obtiene solo los proyectos que pertenecen a un usuario."""
-    query = select(models.Proyecto).options(
-        joinedload(models.Proyecto.propietario),
-        selectinload(models.Proyecto.asociaciones_usuario).joinedload(models.ProyectoUsuario.usuario),
-        selectinload(models.Proyecto.batches)
-    ).filter(models.Proyecto.propietario_id == propietario_id).offset(skip).limit(limit)
-    
+    query = (
+        select(models.Proyecto)
+        .join(models.ProyectoUsuario, models.Proyecto.id == models.ProyectoUsuario.proyecto_id, isouter=True)
+        .filter(
+            # --- LA LÓGICA CLAVE ---
+            or_(
+                models.Proyecto.propietario_id == propietario_id,
+                models.ProyectoUsuario.usuario_id == propietario_id
+            )
+        )
+        # Las opciones de carga son cruciales para evitar errores de lazy loading
+        .options(
+            joinedload(models.Proyecto.propietario),
+            selectinload(models.Proyecto.asociaciones_usuario).joinedload(models.ProyectoUsuario.usuario),
+            selectinload(models.Proyecto.batches)
+        )
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
     return result.unique().scalars().all()
 
@@ -134,6 +149,56 @@ async def get_suma_total_proyecto(db: AsyncSession, proyecto_id: int,filtro_cate
     return total_manual + total_electronica
 
 
+
+
+async def get_suma_manuales_proyecto(db: AsyncSession, proyecto_id: int,filtro_categoria:str="Invalidas"):
+    """
+    Calcula la suma de los montos de las  manual
+    de un proyecto específico directamente en la base de datos.
+    """
+    # Suma para facturas manuales
+    # cat=await crud_categoria.get_or_create_categoria(db,filtro_categoria)
+    
+    query_manual = select(func.sum(models.FacturaManual.monto_total)).filter(
+        models.FacturaManual.proyecto_id == proyecto_id
+        
+    )
+    result_manual = await db.execute(query_manual)
+    total_manual = result_manual.scalar_one_or_none() or 0.0
+    return total_manual
+
+async def get_count_facturas_manuales(db: AsyncSession, proyecto_id: int) -> int:
+    """Cuenta el número de facturas manuales en un proyecto."""
+    query = select(func.count(models.FacturaManual.id)).filter(models.FacturaManual.proyecto_id == proyecto_id)
+    result = await db.execute(query)
+    return result.scalar_one()
+
+async def get_count_facturas_electronicas(db: AsyncSession, proyecto_id: int) -> int:
+    """Cuenta el número de facturas electrónicas en un proyecto."""
+    query = select(func.count(models.FacturaElectronica.id)).filter(models.FacturaElectronica.proyecto_id == proyecto_id)
+    result = await db.execute(query)
+    return result.scalar_one()
+async def get_suma_electronicas_proyecto(db: AsyncSession, proyecto_id: int,filtro_categoria:str="Invalidas"):
+    """
+    Calcula la suma de los montos de las  electrónicas
+    de un proyecto específico directamente en la base de datos.
+    """
+    # Suma para facturas manuales
+    cat=await crud_categoria.get_or_create_categoria(db,filtro_categoria)
+    # Suma para facturas electrónicas
+    # print("\n\n\n\n el cat de factura es ")
+    # 🚩
+    query_electronica = select(func.sum(models.FacturaElectronica.monto_total)).filter(
+        models.FacturaElectronica.proyecto_id == proyecto_id
+        , or_(
+        models.FacturaElectronica.categoria_id != cat.id,
+        models.FacturaElectronica.categoria_id == None)
+    )
+    result_electronica = await db.execute(query_electronica)
+    total_electronica = result_electronica.scalar_one_or_none() or 0.0
+
+    return  total_electronica
+
 async def get_resumen_batches_por_proyecto(db: AsyncSession, proyecto_id: int,filtro_categoria="Invalidas") -> list:
     """
     Calcula la suma de los montos de las facturas para cada batch
@@ -142,6 +207,18 @@ async def get_resumen_batches_por_proyecto(db: AsyncSession, proyecto_id: int,fi
     # Usaremos un diccionario para sumar los totales de ambas tablas de facturas
     # defaultdict es útil porque crea una entrada con 0.0 si la clave no existe
     sumas_por_batch = defaultdict(float)
+    cantidad_electronicas_por_batch = defaultdict(int)
+    cantidad_manuales_por_batch = defaultdict(int)
+
+    query_manual = (
+        select(models.FacturaManual.batch_id, func.count(models.FacturaManual.id))
+        .filter(models.FacturaManual.proyecto_id == proyecto_id)
+        .filter(models.FacturaManual.batch_id.is_not(None)) # Ignoramos las que no tienen batch
+        .group_by(models.FacturaManual.batch_id)
+    )
+    result_manual = await db.execute(query_manual)
+    for batch_id, cantidad in result_manual.all():
+        cantidad_manuales_por_batch[batch_id] += cantidad
 
     # Consulta para sumar facturas manuales por batch
     query_manual = (
@@ -154,8 +231,23 @@ async def get_resumen_batches_por_proyecto(db: AsyncSession, proyecto_id: int,fi
     for batch_id, suma in result_manual.all():
         sumas_por_batch[batch_id] += suma
     cat=await crud_categoria.get_or_create_categoria(db,filtro_categoria)
+    query_electronica = (
+        select(models.FacturaElectronica.batch_id, func.count(models.FacturaElectronica.id))
+        .filter(models.FacturaElectronica.proyecto_id == proyecto_id)
+        .filter(models.FacturaElectronica.batch_id.is_not(None))
+        .filter(or_(
+            models.FacturaElectronica.categoria_id != cat.id,
+            models.FacturaElectronica.categoria_id == None
+        ))
+        .group_by(models.FacturaElectronica.batch_id)
+    )
+    result_electronica = await db.execute(query_electronica)
+    for batch_id, cantidad in result_electronica.all():
+        cantidad_electronicas_por_batch[batch_id] += cantidad
+    
     # Consulta para sumar facturas electrónicas por batch
-    # 🚩
+    
+    
     query_electronica = (
         select(models.FacturaElectronica.batch_id, func.sum(models.FacturaElectronica.monto_total))
         .filter(models.FacturaElectronica.proyecto_id == proyecto_id)
@@ -183,7 +275,9 @@ async def get_resumen_batches_por_proyecto(db: AsyncSession, proyecto_id: int,fi
     for batch in batches_obj:
         resumen_final.append({
             "batch_info": batch,
-            "monto_total_batch": sumas_por_batch.get(batch.id, 0.0)
+            "monto_total_batch": sumas_por_batch.get(batch.id, 0.0),
+            "cantidad_electronicas": cantidad_electronicas_por_batch.get(batch.id, 0),
+            "cantidad_manuales": cantidad_manuales_por_batch.get(batch.id, 0)
         })
 
     return resumen_final
@@ -211,11 +305,11 @@ async def delete_proyecto(db: AsyncSession, proyecto_id: int):
     return await get_proyecto(db, proyecto_id=db_proyecto.id)
 
 
-async def anadir_miembro_a_proyecto(db: AsyncSession, miembro_data: schemas.MiembroProyecto, proyecto_id: int):
+async def anadir_miembro_a_proyecto(db: AsyncSession, miembro_data: schemas.MiembroProyecto, proyecto_id: int,id_user:int):
     """Añade un nuevo miembro a un proyecto con un rol específico."""
     asociacion = models.ProyectoUsuario(
         proyecto_id=proyecto_id,
-        usuario_id=miembro_data.usuario_id,
+        usuario_id=id_user,
         rol=miembro_data.rol
     )
     db.add(asociacion)
@@ -241,3 +335,198 @@ async def eliminar_miembro_de_proyecto(db: AsyncSession, proyecto_id: int, usuar
     await db.delete(asociacion)
     await db.commit()
     return asociacion
+
+
+async def buscar_facturas_unificadas(db: AsyncSession, filtros: schemas.FiltrosFactura,user_id:int=None):
+    """
+    Busca, filtra, ordena y pagina facturas de forma unificada (manuales y electrónicas).
+    """
+    
+    skip = (filtros.page - 1) * filtros.size
+    limit = filtros.size
+    # --- 1. Construcción dinámica de filtros ---
+    # Filtros comunes para ambas tablas
+    common_filters = []
+
+    if filtros.proyecto_id:
+        # Si se especifica un proyecto, filtramos por él.
+        common_filters.append(models.FacturaManual.proyecto_id == filtros.proyecto_id)
+    else:
+        # SI NO se especifica un proyecto, buscamos en TODOS los proyectos del usuario.
+        # Primero obtenemos los IDs de los proyectos del usuario.
+        if user_id:
+            proyectos_usuario_query = select(models.ProyectoUsuario.proyecto_id).filter(models.ProyectoUsuario.usuario_id == user_id)
+        else:
+            proyectos_usuario_query = select(models.ProyectoUsuario.proyecto_id)
+    
+        proyectos_usuario_result = await db.execute(proyectos_usuario_query)
+        proyectos_ids = proyectos_usuario_result.scalars().all()
+        
+        # Filtramos facturas que pertenezcan a cualquiera de esos proyectos.
+        common_filters.append(models.FacturaManual.proyecto_id.in_(proyectos_ids))
+
+
+    if filtros.fecha_inicio:
+        start_datetime = datetime.combine(filtros.fecha_inicio, time.min)
+        common_filters.append(models.FacturaManual.fecha >= start_datetime)
+    if filtros.fecha_fin:
+        end_datetime = datetime.combine(filtros.fecha_fin, time.max)
+        common_filters.append(models.FacturaManual.fecha <= end_datetime)
+    if filtros.monto_min is not None:
+        common_filters.append(models.FacturaManual.monto_total >= filtros.monto_min)
+    if filtros.monto_max is not None:
+        common_filters.append(models.FacturaManual.monto_total <= filtros.monto_max)
+    if filtros.categoria_id is not None:
+        common_filters.append(models.FacturaManual.categoria_id == filtros.categoria_id)
+    if filtros.empresa_id is not None:
+        common_filters.append(models.FacturaManual.empresa_id == filtros.empresa_id)
+
+    # Filtros solo para facturas electrónicas
+    electronica_filters = common_filters.copy()
+    if filtros.complete is not None:
+        electronica_filters.append(models.FacturaElectronica.complete == filtros.complete)
+    if filtros.factura_especial is not None:
+        electronica_filters.append(models.FacturaElectronica.factura_especial == filtros.factura_especial)
+    
+    # --- 2. Creación de las consultas SELECT ---
+    select_statements = []
+
+    # Se añaden columnas comunes para que el UNION funcione.
+ # Se añade una columna 'tipo' para saber de qué tabla viene cada ID.
+    if filtros.tipo_factura in ['todas', 'manual']:
+        q_manual = (
+            select(
+                models.FacturaManual.id,
+                models.FacturaManual.fecha,
+                models.FacturaManual.monto_total,
+                literal("manual").label("tipo"),
+                # --- AÑADIMOS LAS COLUMNAS PARA ORDENAR ---
+                models.Empresa.nombre.label("empresa_nombre"),
+                models.Categoria.nombre.label("categoria_nombre"),
+                models.Batch.nombre.label("batch_nombre")
+            )
+            .join(models.Empresa, models.FacturaManual.empresa_id == models.Empresa.id, isouter=True)
+            .join(models.Categoria, models.FacturaManual.categoria_id == models.Categoria.id, isouter=True)
+            .join(models.Batch, models.FacturaManual.batch_id == models.Batch.id, isouter=True)
+            .filter(and_(*common_filters))
+        )
+        select_statements.append(q_manual)
+
+    if filtros.tipo_factura in ['todas', 'electronica']:
+        q_electronica = (
+            select(
+                models.FacturaElectronica.id,
+                models.FacturaElectronica.fecha,
+                models.FacturaElectronica.monto_total,
+                literal("electronica").label("tipo"),
+                # --- AÑADIMOS LAS MISMAS COLUMNAS ---
+                models.Empresa.nombre.label("empresa_nombre"),
+                models.Categoria.nombre.label("categoria_nombre"),
+                models.Batch.nombre.label("batch_nombre")
+            )
+            .join(models.Empresa, models.FacturaElectronica.empresa_id == models.Empresa.id, isouter=True)
+            .join(models.Categoria, models.FacturaElectronica.categoria_id == models.Categoria.id, isouter=True)
+            .join(models.Batch, models.FacturaElectronica.batch_id == models.Batch.id, isouter=True)
+            .filter(and_(*electronica_filters))
+        )
+        select_statements.append(q_electronica)
+
+    if not select_statements:
+        return {"total": 0, "items": []}
+
+    # --- 3. Unión de las consultas y paginación ---
+    # Unimos las consultas y creamos una subconsulta (CTE)
+    unified_cte = union_all(*select_statements).cte('unified_cte')
+    # --- Contar el total de resultados ---
+# Contar el total de resultados antes de paginar
+    count_query = select(func.count()).select_from(unified_cte)
+    total = (await db.execute(count_query)).scalar_one()
+
+    # Lógica de Ordenamiento Dinámico
+    sortable_columns = {
+        "fecha": unified_cte.c.fecha,
+        "monto_total": unified_cte.c.monto_total,
+        "empresa": unified_cte.c.empresa_nombre,
+        "categoria": unified_cte.c.categoria_nombre,
+        "batch": unified_cte.c.batch_nombre,
+    }
+    sort_column = sortable_columns.get(filtros.sort_by, unified_cte.c.fecha)
+    
+    # order_logic = sort_column.desc() if filtros.sort_order == 'desc' else sort_column.asc()
+    order_logic = sort_column.desc().nullslast() if filtros.sort_order == 'desc' else sort_column.asc().nullsfirst()
+    # Obtener solo los IDs y tipos de la página actual
+    paginated_ids_query = select(unified_cte.c.id, unified_cte.c.tipo).order_by(order_logic).offset(skip).limit(limit)
+    paginated_ids_result = await db.execute(paginated_ids_query)
+    
+    manual_ids = []
+    electronica_ids = []
+    # Mantenemos el orden original para el paso final
+    order_map = {}
+    for i, (id, tipo) in enumerate(paginated_ids_result.all()):
+        order_map[f"{tipo}_{id}"] = i
+        if tipo == 'manual':
+            manual_ids.append(id)
+        else:
+            electronica_ids.append(id)
+            
+    # --- 5. Obtener los objetos completos con Eager Loading ---
+    items_map = {}
+    if manual_ids:
+        # (Aquí va tu consulta con eager loading para FacturaManual)
+        manual_items_query = select(models.FacturaManual).options(
+        # --- CARGA ANIDADA COMPLETA ---
+        joinedload(models.FacturaManual.proyecto).options(
+            joinedload(models.Proyecto.propietario),
+            selectinload(models.Proyecto.asociaciones_usuario).joinedload(models.ProyectoUsuario.usuario),
+            selectinload(models.Proyecto.batches) # <-- Añade la carga de batches
+        ),
+        joinedload(models.FacturaManual.categoria),
+        joinedload(models.FacturaManual.batch),
+        joinedload(models.FacturaManual.empresa)
+    ).filter(models.FacturaManual.id.in_(manual_ids))
+    
+
+
+        manual_items_result = await db.execute(manual_items_query)
+        for item in manual_items_result.unique().scalars().all():
+            items_map[f"manual_{item.id}"] = item
+
+    if electronica_ids:
+        # (Aquí va tu consulta con eager loading para FacturaElectronica)
+        electronica_items_query = select(models.FacturaElectronica).options(
+        # --- CARGA ANIDADA COMPLETA (TAMBIÉN AQUÍ) ---
+        joinedload(models.FacturaElectronica.proyecto).options(
+            joinedload(models.Proyecto.propietario),
+            selectinload(models.Proyecto.asociaciones_usuario).joinedload(models.ProyectoUsuario.usuario),
+            selectinload(models.Proyecto.batches) # <-- Añade la carga de batches
+        ),
+        joinedload(models.FacturaElectronica.categoria),
+        joinedload(models.FacturaElectronica.batch),
+        joinedload(models.FacturaElectronica.empresa)
+    ).filter(models.FacturaElectronica.id.in_(electronica_ids))
+        
+        electronica_items_result = await db.execute(electronica_items_query)
+        for item in electronica_items_result.unique().scalars().all():
+            items_map[f"electronica_{item.id}"] = item
+            
+    # Reconstruimos la lista final respetando el orden de la paginación
+    final_items = sorted(items_map.values(), key=lambda x: order_map[f"{'manual' if isinstance(x, models.FacturaManual) else 'electronica'}_{x.id}"])
+    
+    items_con_tipo = []
+    for item in final_items: # 'final_items' es la lista ordenada del paso anterior
+        if isinstance(item, models.FacturaManual):
+            # Convertimos el objeto a su schema Pydantic correspondiente.
+            # Pydantic aplicará el valor por defecto 'tipo: manual'.
+            schema_obj = schemas.FacturaManual.model_validate(item)
+        elif isinstance(item, models.FacturaElectronica):
+            schema_obj = schemas.FacturaElectronica.model_validate(item)
+        else:
+            continue # Ignorar tipos desconocidos si los hubiera
+
+        # Convertimos el objeto Pydantic a un diccionario.
+        # Ahora este diccionario SÍ tiene la clave 'tipo'.
+        items_con_tipo.append(schema_obj.model_dump())
+        
+    # Devolvemos el total y la nueva lista de diccionarios.
+    return {"total": total, "items": items_con_tipo}
+    # return {"total": total, "items": final_items}

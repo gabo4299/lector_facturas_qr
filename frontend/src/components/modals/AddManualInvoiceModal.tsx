@@ -4,13 +4,17 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { getCompanies } from '../../api/companyService';
 import type {Company}from '../../api/companyService';
 import { createManualInvoice } from '../../api/invoiceService';
-
+import { getBatchesForProject, getCategoriesForProject } from '../../api/projectService';
 interface AddManualInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
   nitBeneficiario: string;
   onInvoiceCreated: () => void;
+}
+interface BatchOrCategory {
+  id: number;
+  nombre: string;
 }
 
 export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficiario, onInvoiceCreated }: AddManualInvoiceModalProps) => {
@@ -27,8 +31,19 @@ export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficia
 
   const modalRef = useRef<HTMLDivElement>(null);
 
+  const [selectedBatch, setSelectedBatch] = useState<number | undefined>();
+  const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
+
+  const [batches, setBatches] = useState<BatchOrCategory[]>([]);
+    const [categories, setCategories] = useState<BatchOrCategory[]>([]);
+    
   useEffect(() => {
     if (isOpen) {
+      const fetchData = async () => {
+              setBatches(await getBatchesForProject(projectId));
+              setCategories(await getCategoriesForProject());
+            };
+            fetchData();
       const fetchEmpresas = async () => setEmpresas(await getCompanies());
       fetchEmpresas();
       // Resetear formulario al abrir
@@ -91,6 +106,8 @@ export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficia
         nit_emisor: nitEmisor,
         // Solo envía el nombre si es una empresa nueva (no seleccionada de la lista)
         nombre_empresa: selectedCompany ? undefined : nombreEmpresa,
+        batch_id: selectedBatch,
+        category_id: selectedCategory
       });
       onInvoiceCreated();
       onClose();
@@ -164,7 +181,24 @@ export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficia
                 className="w-full mt-1 px-3 py-2 border rounded-md shadow-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
-       
+            <div className="grid grid-cols-2 gap-4 mb-4">
+            <select 
+              value={selectedBatch || ''} 
+              onChange={e => setSelectedBatch(Number(e.target.value))} 
+              className="w-full px-3 py-2 border rounded-md shadow-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar Lote</option>
+              {batches.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </select>
+            <select 
+              value={selectedCategory || ''} 
+              onChange={e => setSelectedCategory(Number(e.target.value))} 
+              className="w-full px-3 py-2 border rounded-md shadow-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar Categoría</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </div>
 
           {error && <div className="mt-4 text-sm text-center text-red-700">{error}</div>}
           <div className="mt-6 flex justify-end space-x-3">

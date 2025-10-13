@@ -241,18 +241,19 @@ async def update_factura_desde_scraping(db: AsyncSession, factura_id: int, datos
 
 
     update_data = datos_completos.model_dump(exclude_unset=True)
-    if update_data["Nit_Beneficiario"] != proyecto.nit_beneficiario:
-        print("error de NITS")
-        return await set_error_Factura_Electronica(db,db_factura,msg=f"nit beneficiario ({update_data['Nit_Beneficiario'] }) diferente a nit de proyecto {proyecto.nit_beneficiario} se recomienda eliminar")
-    if update_data["fecha"] != None:
-        
-        if not (proyecto.fecha_inicio <= parse_fecha(update_data["fecha"].isoformat()) <= proyecto.fecha_fin):
-            msg=f"La fecha de la factura ({update_data['fecha'].date()}) está fuera del rango del proyecto ({proyecto.fecha_inicio.date()} al {proyecto.fecha_fin.date()} se recomienda eliminar)."
-            return await set_error_Factura_Electronica(db,db_factura,msg)
-        
-    else:
-        print("error de fecha no hay ")
-        return await set_error_Factura_Electronica(db,db_factura,msg=f"ERROR: No se introdujo fecha")
+    if update_data["complete"] == True:
+        if update_data["Nit_Beneficiario"] != proyecto.nit_beneficiario:
+            print("error de NITS")
+            return await set_error_Factura_Electronica(db,db_factura,msg=f"nit beneficiario ({update_data['Nit_Beneficiario'] }) diferente a nit de proyecto {proyecto.nit_beneficiario} se recomienda eliminar")
+        if update_data["fecha"] != None:
+            
+            if not (proyecto.fecha_inicio <= parse_fecha(update_data["fecha"].isoformat()) <= proyecto.fecha_fin):
+                msg=f"La fecha de la factura ({update_data['fecha'].date()}) está fuera del rango del proyecto ({proyecto.fecha_inicio.date()} al {proyecto.fecha_fin.date()} se recomienda eliminar)."
+                return await set_error_Factura_Electronica(db,db_factura,msg)
+            
+        else:
+            print("error de fecha no hay ")
+            return await set_error_Factura_Electronica(db,db_factura,msg=f"ERROR: No se introdujo fecha")
 
     nit_empresa = update_data.pop("nit_emisor", None)
     nombre_empresa = update_data.pop("empresa", None)
@@ -261,12 +262,21 @@ async def update_factura_desde_scraping(db: AsyncSession, factura_id: int, datos
         # print("los valores a actulizar \n",key , value)
         setattr(db_factura, key, value)
     if nit_empresa:
+        rub=None
+        try:
+            if update_data["factura_especial"] == True:
+                rub="Gasolinera"
+        except:
+            rub=None
         empresa_obj = await crud_empresa.get_or_create_empresa(
-            db, nit=nit_empresa, nombre=nombre_empresa
+            db, nit=nit_empresa, nombre=nombre_empresa,rubro=rub
         )
         # Asociamos la factura con la empresa encontrada o creada
         db_factura.empresa_id = empresa_obj.id
-
+        if empresa_obj.rubro == "Gasolinera" and db_factura.factura_especial == False:
+            db_factura.factura_especial=True
+        if  db_factura.factura_especial==True:
+            db_factura.monto_total =  db_factura.monto_total*0.70
     # print("factura nueva \n\n\n\n",db_factura)
     await db.commit()
     await db.refresh(db_factura) # Refresca la instancia con los nuevos datos de la DB

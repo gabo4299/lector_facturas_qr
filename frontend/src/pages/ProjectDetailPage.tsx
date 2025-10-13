@@ -2,19 +2,20 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getProjectById ,getInvoicesByProjectId} from '../api/projectService';
+// modales
 import { AddManualInvoiceModal } from '../components/modals/AddManualInvoiceModal';
 import { AddBatchModal } from '../components/modals/AddBatchModal';
+import { AddBatchInvoicesModal } from '../components/modals/AddBatchInvoicesModal';
 import { AddElectronicInvoiceModal } from '../components/modals/AddElectronicInvoiceModal';
 // Tipos básicos para el ejemplo, deberías refinarlos según tu API
 import { deleteManualInvoice, deleteElectronicInvoice } from '../api/invoiceService';
+import { EditInvoiceModal } from '../components/modals/EditInvoiceModal';
+import type {Category} from '../types'
 
-interface Category {
-    nombre: string;
-}
 interface Empresa {
     nombre: string;
 }
-interface Batch{
+export interface Batch{
     nombre:string;
     descripcion:string;
     id:number;
@@ -30,6 +31,7 @@ interface ManualInvoiceAPI {
 interface ElectronicInvoiceAPI {
   id: number;
   fecha: string;
+  url?:string;
   empresa: Empresa | null;
   monto_total: number;
   monto_fiscal: number;
@@ -45,18 +47,22 @@ interface InvoicesAPIResponse {
   facturas_electronicas: ElectronicInvoiceAPI[];
 }
 
-interface UnifiedInvoice {
+export interface UnifiedInvoice {
   id: string;
   type: 'Manual' | 'Electrónica';
+  url?:string;
   date: string;
   provider: string;
   status: string;
   batch: string;
+  categoria_id?:number;
+  batch_id?:number;
   save_pdf:boolean;
   category: string;
   total_amount: number;
   complete:boolean;
   vat: number;
+  fecha_date?:Date;
 }
 // Tipos para los datos que vienen de la API
 interface ProjectData { // Solo datos del proyecto
@@ -78,9 +84,13 @@ export const ProjectDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [isBatchScanModalOpen, setIsBatchScanModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isManualInvoiceModalOpen, setIsManualInvoiceModalOpen] = useState(false);
   const [isElectronicInvoiceModalOpen, setIsElectronicInvoiceModalOpen] = useState(false);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [invoiceToEdit, setInvoiceToEdit] = useState<UnifiedInvoice | null>(null);
 
 const fetchProjectData = async (id: string) => {
     try {
@@ -93,7 +103,7 @@ const fetchProjectData = async (id: string) => {
         setProject(projectData);
         setInvoicesResponse(invoicesData)
         const manuales = invoicesData.facturas_manuales.map((inv:ManualInvoiceAPI): UnifiedInvoice => ({
-          id: `manual-${inv.id}`,
+          id: `M-${inv.id}`,
           type: 'Manual',
           status: 'Complete',
           save_pdf:false,
@@ -103,21 +113,28 @@ const fetchProjectData = async (id: string) => {
           total_amount: inv.monto_total,
           vat: inv.monto_total * 0.03,
           batch: inv.batch?.nombre || '-',
+          batch_id: inv.batch?.id || undefined,
+          categoria_id: inv.categoria?.id || undefined,
           category: inv.categoria?.nombre || '-',
+          fecha_date:new Date(inv.fecha),
         }));
 
         const electronicas = invoicesData.facturas_electronicas.map((inv:ElectronicInvoiceAPI): UnifiedInvoice => ({
-          id: `electronica-${inv.id}`,
+          id: `E-${inv.id}`,
           type: 'Electrónica',
           status: inv.status, 
           complete:inv.complete,
           save_pdf:inv.save_pdf,
+          url:inv.url,
           date: new Date(inv.fecha).toLocaleDateString(),
           provider: inv.empresa?.nombre || 'N/A',
           total_amount: inv.monto_total,
           vat: inv.monto_total * 0.03,
           batch: inv.batch?.nombre || '-',
+          batch_id: inv.batch?.id || undefined,
           category: inv.categoria?.nombre || '-',
+          categoria_id: inv.categoria?.id || undefined,
+          fecha_date:new Date(inv.fecha),
         }));
 
         setUnifiedInvoices([...manuales, ...electronicas]);
@@ -138,7 +155,19 @@ useEffect(() => {
       fetchProjectData(projectId);
     }
   }, [projectId]);
- 
+ const handleOpenEditModal = (invoice: UnifiedInvoice) => {
+    // Solo permite editar facturas electrónicas
+
+    
+    setInvoiceToEdit(invoice);
+
+    setIsEditModalOpen(true);
+  };
+
+    const handleCloseModals = () => {
+    setIsEditModalOpen(false);
+    setInvoiceToEdit(null);
+  };
   const refreshProjectData = () => {
     // Esta lógica es para forzar el re-render y la recarga de datos.
     // Una solución más avanzada podría usar un gestor de estado como SWR o React Query.
@@ -265,6 +294,9 @@ useEffect(() => {
             className="px-6 py-3 font-bold text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700 shadow-lg w-full lg:w-auto">
           Agregar Factura Electronica
         </button>
+        <button onClick={() => setIsBatchScanModalOpen(true)} className="px-6 py-3 font-bold text-white transition-colors bg-yellow-600 rounded-md hover:bg-green-700 shadow-lg w-full lg:w-auto">
+            Escanear en Lote
+          </button>
         <button
             onClick={() => setIsManualInvoiceModalOpen(true)} 
             className="px-6 py-3 font-bold text-white transition-colors bg-blue-600 rounded-md hover:bg-blue-700 shadow-lg w-full lg:w-auto">
@@ -287,6 +319,7 @@ useEffect(() => {
         <table className="w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">id</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa</th>
@@ -296,7 +329,7 @@ useEffect(() => {
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">% ganado</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
               
             </tr>
           </thead>
@@ -304,10 +337,13 @@ useEffect(() => {
             {unifiedInvoices.length > 0 ? (
               unifiedInvoices.map((invoice) => (
                 <tr key={invoice.id} className={`${getStatusColor(invoice.complete,invoice.status)}`}>
+                  <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-700'>
+                    <a href={invoice.url} target="_blank">{invoice.id}</a>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                         <button 
-                          
+                          onClick={() => handleOpenEditModal(invoice)} 
                           className="px-1 py-1 bg-indigo-100 rounded-md text-indigo-600 hover:text-indigo-900">
                             Editar</button>
                         <button 
@@ -317,7 +353,7 @@ useEffect(() => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{invoice.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{invoice.provider}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 ">{invoice.provider}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{invoice.batch}</td>
                   <td className="px-6 py-4 text-sm font-medium ">
                     <span
@@ -330,10 +366,8 @@ useEffect(() => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.total_amount.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.vat.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      invoice.type === 'Manual' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {invoice.type}
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full `}>
+                      {invoice.category}
                     </span>
                   </td>
                   
@@ -368,6 +402,22 @@ useEffect(() => {
         onClose={() => setIsElectronicInvoiceModalOpen(false)}
         projectId={project.id.toString()}
         onInvoiceCreated={refreshProjectData}
+      />
+      <AddBatchInvoicesModal
+          isOpen={isBatchScanModalOpen}
+          onClose={() => setIsBatchScanModalOpen(false)}
+          projectId={project.id.toString()}
+          onInvoiceCreated={refreshProjectData}
+        />
+        <EditInvoiceModal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseModals}
+        invoice={invoiceToEdit}
+        batches={project.batches || []}
+        onInvoiceUpdated={() => {
+          handleCloseModals();
+          refreshProjectData(); // Reutiliza tu función para refrescar datos
+        }}
       />
   </>
   );

@@ -1,3 +1,5 @@
+import math
+from sqlalchemy import asc, desc, func, or_
 from backend.db import models
 from backend.schemas import  schemas 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,7 +66,7 @@ async def get_categoria_by_name(db:AsyncSession, name:str):
 
 async def get_or_create_categoria(db: AsyncSession, name: str,description:str="") -> models.Categoria:
     """
-    Busca una empresa por su NIT. Si no existe, la crea.
+    Busca una categoria por su NIT. Si no existe, la crea.
     """
     db_categoria = await get_categoria_by_name(db, name=name)
     
@@ -82,3 +84,52 @@ async def get_or_create_categoria(db: AsyncSession, name: str,description:str=""
     await db.commit()
     await db.refresh(nueva_categoria)
     return nueva_categoria
+
+
+async def get_categorias_paginacion(db: AsyncSession,
+                                   search:str=None,page:int=1,size:int=10,
+                                   sort_by: str = "id", # Por defecto ordena por id
+                                    sort_order: str = "asc"):
+    """Busca un todos los categorias"""
+    sortable_columns = {
+        "id": models.Categoria.id,
+        "nombre": models.Categoria.nombre,
+        "descripcion": models.Categoria.descripcion,
+    }
+    
+    # Si el sort_by no es válido, usa 'id' por defecto
+    sort_column = sortable_columns.get(sort_by, models.Categoria.id)
+
+    # 2. Determina la dirección del ordenamiento
+    order_function = desc if sort_order == "desc" else asc
+    query = select(models.Categoria).order_by(order_function(sort_column))
+    if search:
+        query = query.where(
+            or_(
+                models.Categoria.nombre.ilike(f"%{search}%"), # ilike es case-insensitive
+                models.Categoria.descripcion.ilike(f"%{search}%")
+            )
+        )
+    count_statement = select(func.count()).select_from(query.subquery())
+    total_items_result = await db.execute(count_statement)
+    total_items = total_items_result.scalar_one()
+    if total_items == 0:
+        return { "items": [], "total": 0, "page": page, "size": size, "pages": 0 }
+    total_pages = math.ceil(total_items / size)
+
+    # 5. Aplica la paginación (offset y limit)
+    offset = (page - 1) * size
+    paginated_statement = query.offset(offset).limit(size)
+
+    # 6. Ejecuta la consulta principal y obtén los resultados
+    result = await db.execute(paginated_statement)
+    items = result.scalars().all() # 👈 .scalars().all() para obtener la lista de objetos
+
+    # 7. Devuelve la respuesta estructurada
+    return {
+        "items": items,
+        "total": total_items,
+        "page": page,
+        "size": size,
+        "pages": total_pages,
+    }

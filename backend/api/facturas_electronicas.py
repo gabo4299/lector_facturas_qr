@@ -290,6 +290,23 @@ async def check_factura_electronica(factura_id: int,
         return JSONResponse(status_code=500,content=contenido_serializable)
 
 
+@router.get("/electronicas/checkforce/{factura_id}",response_model=schemas.FacturaElectronica , tags=["Facturas electronicas"])
+async def checkforced_factura_electronica(factura_id: int,
+                                    db:AsyncSession=Depends(get_db),
+                                    factura_cuestion: models.FacturaElectronica = Depends(verificar_permiso_en_factura(allowed_roles=["dueño", "editor"]))):
+    db_factura=factura_cuestion
+    categoria_x=await crud_categoria.get_or_create_categoria(db=db,name="Invalidas")
+    
+    
+    if categoria_x.id != db_factura.categoria_id:
+        
+        db_fact= await factura_service.tarea_de_scraping_y_actualizacion(factura_id,db_factura.url,db_factura.save_pdf)
+        return db_fact
+    else:
+        contenido_serializable = {
+                "msg": "Error la factura es invalida "}
+
+        return JSONResponse(status_code=500,content=contenido_serializable)
 
 
 

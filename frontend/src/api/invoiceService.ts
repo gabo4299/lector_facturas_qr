@@ -33,6 +33,8 @@ interface ManualInvoicePayload {
   fecha: string;
   nombre_empresa?: string;
   nit_emisor: string;
+   batch_id?: number,
+  category_id?: number
 }
 
 /**
@@ -101,6 +103,55 @@ export const createElectronicInvoice = async (data: ElectronicInvoicePayload) =>
   } catch (error) {
     if (isAxiosError(error)) {
       throw new Error(error.response?.data?.detail || 'No se pudo crear la factura electrónica.');
+    }
+    throw new Error('Ocurrió un error inesperado.');
+  }
+};
+
+
+// Interfaz para actualizar facturas electrónicas (ya la teníamos)
+interface UpdateElectronicInvoicePayload {
+  save_pdf?: boolean;
+  batch_id?: number | null;
+  categoria_id?: number | null;
+}
+
+
+/**
+ * Actualiza una factura electrónica por su ID.
+ * @param {number} invoiceId - El ID de la factura.
+ * @param {UpdateElectronicInvoicePayload} data - Los campos a actualizar.
+ */
+export const updateElectronicInvoice = async (invoiceId: number, data: UpdateElectronicInvoicePayload) => {
+  try {
+    // Asegúrate que este sea tu endpoint PUT
+    await apiClient.put(`/facturas/electronicas/${invoiceId}`, data);
+  } catch (error) {
+    if (isAxiosError(error)) {
+      throw new Error(error.response?.data?.detail || 'No se pudo actualizar la factura.');
+    }
+    throw new Error('Ocurrió un error inesperado.');
+  }
+};
+
+
+interface UpdateManualInvoicePayload {
+  monto_total?: number;
+  fecha?: string;
+  categoria_id?: number | null;
+  batch_id?: number | null;
+}
+
+
+/**
+ * Actualiza una factura MANUAL por su ID.
+ */
+export const updateManualInvoice = async (invoiceId: number, data: UpdateManualInvoicePayload) => {
+  try {
+    await apiClient.put(`/facturas/manuales/${invoiceId}`, data);
+  } catch (error) {
+    if (isAxiosError(error)) {
+      throw new Error(error.response?.data?.detail || 'No se pudo actualizar la factura manual.');
     }
     throw new Error('Ocurrió un error inesperado.');
   }

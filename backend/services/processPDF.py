@@ -182,6 +182,8 @@ class ProcesadorPDF_Rollo():
                     if "FECHA DE" in linea:
                         # print("fecha es, ",linea)
                         self.fecha=linea.split(':')[1].strip() + ":"+linea.split(':')[2].strip()
+                    if "B-SISA" in linea:
+                        self.facturaEspecial=True
                 if self.nit_ben != "" and self.fecha != "" and self.nombre_razon != "":
                     return ["Exito",True]
                 else:
@@ -271,15 +273,22 @@ class ProcesadorPDF_Rollo():
             if "TOTAL" in self.Zonas[4]:
                 
                 for linea in self.Zonas[4].split('\n'):
-                        
+                        print("lineas ",linea)
                         if "TOTAL" in linea and not "SUBTOTAL" in linea: 
                             montoTotal = re.findall(self.regexNumeros,  linea)
                             montoTotal=float(montoTotal[0].replace(',', ''))
                             self.monto_total=montoTotal
-                        if "IMPORTE BASE" in linea:
-                            montoFiscal = re.findall(self.regexNumeros,  linea)
-                            montoFiscal=float(montoFiscal[0].replace(',', ''))
-                            self.monto_fiscal=montoFiscal
+                        if "IMPORTE BASE" in linea: 
+                            try:
+                                if "LEY 317" in linea :                           
+                                    montoFiscal=self.monto_total*0.7
+                                else:
+                                    montoFiscal = re.findall(self.regexNumeros,  linea)
+                                    montoFiscal=float(montoFiscal[0].replace(',', ''))
+                                
+                                self.monto_fiscal=montoFiscal
+                            except:
+                                print("error en montos ")
                 if montoFiscal != montoTotal :
                     self.facturaEspecial=True
                 if self.monto_fiscal != 0 and self.monto_total !=0:

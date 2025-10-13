@@ -1,0 +1,7 @@
+
+desde lector_facturas
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000 --ssl-keyfile ./localhost+2-key.pem --ssl-certfile ./localhost+2.pem
+
+
+desde lector_facturas/backend
+fastapi run ./main

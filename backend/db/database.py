@@ -13,7 +13,7 @@ DATABASE_URL=os.getenv("ASYNC_DATABASE")
 
 
 # Crea el motor asíncrono
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(DATABASE_URL, echo=False)
 
 # Crea una fábrica de sesiones asíncronas
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)

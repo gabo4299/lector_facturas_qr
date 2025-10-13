@@ -23,6 +23,21 @@ async def leer_categorias(skip: int = 0, limit: int = 100, db: AsyncSession = De
     categorias = await crud_categoria.get_categorias(db, skip=skip, limit=limit)
     return categorias
 
+@router.get("/paginated", response_model=schemas.CategoriaPaginada)
+async def leer_categorias_paginacion(
+                        db: AsyncSession = Depends(get_db),
+                        search: str | None = None,
+                        page: int = 1,
+                        size: int = 10,
+                        sort_by: str = "id", # Por defecto ordena por id
+                        sort_order: str = "asc"):
+    print("entrooo")
+    categorias = await crud_categoria.get_categorias_paginacion(db, search=search,page=page,size=size,sort_by=sort_by,sort_order=sort_order)
+
+    
+    
+    return categorias
+
 @router.get("/{categoria_id}", response_model=schemas.Categoria)
 async def leer_categoria(categoria_id: int, db: AsyncSession = Depends(get_db)):
     db_categoria = await crud_categoria.get_categoria(db, categoria_id=categoria_id)
@@ -52,3 +67,4 @@ async def eliminar_categoria(categoria_id: int, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=404, detail="categoria no encontrado")
     # Para DELETE, no se devuelve contenido, solo un código de éxito 204.
     return
+

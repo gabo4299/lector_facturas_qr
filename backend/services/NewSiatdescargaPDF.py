@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import asyncio
 import datetime
 from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 import re
 from urllib.parse import urlparse, parse_qs
 try:
@@ -134,7 +135,7 @@ class ResponseModel:
         "fecha":self.fecha,
         "nombreBeneficiario":self.nombreBeneficiario
             }
-response_model=ResponseModel()
+
 
 
 
@@ -150,7 +151,7 @@ class PDFRequestError(Exception):
     """Error específico para cuando falla la petición Descarga."""
     pass
 def getScrapp(data):
-    global response_model
+    
     try:
         soup = BeautifulSoup(data, 'html.parser')
         datos_factura = {}
@@ -171,171 +172,203 @@ def getScrapp(data):
                 value_span = label_span.find_next_sibling('span')
                 if value_span:
                     if label_text== "Monto Total:":
-                        numero = re.findall(r"\d+\.\d+", value_span.text.strip())
+                        
+                        numero = re.findall(r"\d{1,3}(?:,\d{3})*(?:\.\d+)?", value_span.text.strip())
+                        
+                        # numero = re.findall(r"\d+\.\d+", value_span.text.strip())
                         # Si se encontró el número, lo convertimos a float
                         if numero:
-                            numero_float = float(numero[0])
-                            
+                            numero_cuest=  numero[0].replace(",", "")
+                            numero_float = float(numero_cuest)
+                            print(f"{key_map[label_text]} : {value_span.text.strip()} y el label text:{label_text}")
+                            print("\n\n\n\n\n\nMonto total float : ",numero_float, numero_cuest, numero)
                             datos_factura[key_map[label_text]] = numero_float
                         else:
                             datos_factura[key_map[label_text]] = 0.0
                     else:
+                        print(f"{key_map[label_text]} : {value_span.text.strip()} y el label text:{label_text}")
                         datos_factura[key_map[label_text]] = value_span.text.strip()
         return datos_factura,True
     except Exception as e:
         print(f"Error aqui  {e}")
         return None,e
     
-    
-async def downloadFactura(url_factura=url_scraper,
+    # cambio antes era async
+def downloadFactura(url_factura=url_scraper,
                savePdf=False,
                path=FACTURAS_DIR) ->tuple[ResponseModel,None|str]:
-    
+    response_model=ResponseModel()
     pdf_io=None
-    async with async_playwright() as p:
-        try:
-            if not isinstance(url_factura, str) or not url_factura.startswith('http'):
-                raise GETRequestError(" URL ERROR La entrada debe ser una URL válida en formato string.")
-
-            
-            try : 
-                parsed_url = urlparse(url_factura)
-                params = parse_qs(parsed_url.query)
-                url_nitEmisor = params['nit'][0]
-                url_Nfactura = params['numero'][0]
-                url_cuf = params['cuf'][0]
-
-            except:
-                raise  GETRequestError(" URL ERROR no se pudieron extraer los parametros cuf,numero y nit")
-
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context()
-            page = await context.new_page()
-
-            # evitamos cargas inesesarias 
-            await page.route(re.compile(r"\.(jpg|jpeg|png|gif|svg|woff|woff2|ttf|css)$"), lambda route: route.abort())
-            
-            #  inyectamos los scripts
-            await context.add_init_script(poison_script)
-            await context.add_init_script(interceptor_script)
-
-       
-            # print("Navegando al sitio con el antídoto inyectado...")
+    try:
+         with sync_playwright() as p:
             try:
-                response= await page.goto(url_factura, timeout=60000, wait_until='networkidle')
-            except Exception as e :
-                raise GETRequestError(f"error talvez URL : {str(e)}")
-            # #  MEJORA antes teniamos esta linea y wait until era 'domcontentloaded'
-            # # Damos tiempo a que la aplicación React cargue y renderice todo
-            # await page.wait_for_load_state('networkidle', timeout=30000)
-            # print("respuesta",response, response.ok)
-            if not response.ok:
-                raise GETRequestError(f"Servidor caido  code: {str(response.status)}")
-            # print ("estatus response ", response.status)
-            error_locator = page.locator('text="Factura no encontrada"')
-            error_locator2 = page.locator('text="No se puede acceder a este sitio web"')
-            if await error_locator2.is_visible():
-                raise GETRequestError("No se puede acceder a SIAT ")
+                print("0.1, with")
+                if not isinstance(url_factura, str) or not url_factura.startswith('http'):
+                    raise GETRequestError(" URL ERROR La entrada debe ser una URL válida en formato string.")
+                print("0.2, with")
                 
-            if await error_locator.is_visible():
-                raise GETRequestError("Factura incorrecta verifique url")
-                
-            
-            response_model.status="Factura Correcta... extrayendo data"
-            print("✅ ¡Éxito! La página cargó, las defensas fueron neutralizadas.")
-            # verificamos el mat-card esto podria cambiar despues atento al sitio 
-            try:
-                html_content = await page.locator('mat-card-content:has-text("Detalle de la Factura")').inner_html()
-            except:
-                raise ScraperError("Error no se encontro contenedor de los datos")
-            
-            scraper=getScrapp(html_content)
-            data=scraper[0]
-            if data:
-                # print("exxtraccion exitosa ")
-                # for key, value in data.items():
-                #     print(f"{key}: {value}")
-                response_model.nFactura=int(data["numero_factura"])
-                response_model.cuf=data["cuf"]
-                response_model.fecha=data["fecha_emision"]
-                response_model.monto=float(data["monto_total"])
-                response_model.estado_fact_url=data["estado_factura"]
-                response_model.nitEmisor=data["nit_emisor"]
-                response_model.comercio=data["razon_social_emisor"]
-                response_model.nombreBeneficiario=data["nombre_cliente"]
-                response_model.nitBeneficiario=data["documento_cliente"]
+                try : 
+                    print("1, pased")
+                    parsed_url = urlparse(url_factura)
+                    params = parse_qs(parsed_url.query)
+                    url_nitEmisor = params['nit'][0]
+                    url_Nfactura = params['numero'][0]
+                    url_cuf = params['cuf'][0]
 
-            else:
-                raise ScraperError(f" {scraper[1]}")
-            
-            
-            response_model.status=f"factura valida, datos extraidos guardar pdf:{savePdf}"
-            # validar????? no lo se 
+                except:
+                    raise  GETRequestError(" URL ERROR no se pudieron extraer los parametros cuf,numero y nit")
 
-            if savePdf:
+                print("2 launch cronium")
+                # browser = await p.chromium.launch(headless=True)
+                # context = await browser.new_context()
+                # page = await context.new_page()
+                browser =  p.chromium.launch(headless=True)
+                context =  browser.new_context()
+                page =  context.new_page()
+
+                # evitamos cargas inesesarias 
                 
-                print("Iniciando secuencia de descarga del PDF...")
+                # await page.route(re.compile(r"\.(jpg|jpeg|png|gif|svg|woff|woff2|ttf|css)$"), lambda route: route.abort())
+                page.route(re.compile(r"\.(jpg|jpeg|png|gif|svg|woff|woff2|ttf|css)$"), lambda route: route.abort())
                 
+                #  inyectamos los scripts
+                # await context.add_init_script(poison_script)
+                # await context.add_init_script(interceptor_script)
+                context.add_init_script(poison_script)
+                context.add_init_script(interceptor_script)
+
+        
+                print("Navegando al sitio con el antídoto inyectado...")
                 try:
-                    if type (path) == type("str"):
-                        ruta = Path(path)
-                        if not ruta.exists():
-                            print("¡La ruta existe!")
-                            raise PDFRequestError(" error en la path de guardado")
-                        path = Path(path)
-                    # Preparamos a Playwright para que espere una descarga.
-                    async with page.expect_download() as download_info:
-                        # 1. Localizamos el botón "Descargar Factura" por su texto y hacemos clic.
-                        #    Esto abrirá el menú desplegable.
-                        await page.get_by_role("button", name="Descargar Factura").click()
-                        
-                        # 2. Localizamos la opción "ROLLO" en el menú que acaba de aparecer y hacemos clic.
-                        #    Playwright esperará automáticamente a que este elemento sea visible.
-                        await page.get_by_role("menuitem", name="ROLLO").click()
+                    # response= await page.goto(url_factura, timeout=60000, wait_until='networkidle')
+                    response=  page.goto(url_factura, timeout=60000, wait_until='networkidle')
+                except Exception as e :
+                    raise GETRequestError(f"error talvez URL : {str(e)}")
+                # #  MEJORA antes teniamos esta linea y wait until era 'domcontentloaded'
+                # # Damos tiempo a que la aplicación React cargue y renderice todo
+                # await page.wait_for_load_state('networkidle', timeout=30000)
+                # print("respuesta",response, response.ok)
+                print("4, response")
+                if not response.ok:
+                    raise GETRequestError(f"Servidor caido  code: {str(response.status)}")
+                # print ("estatus response ", response.status)
+                error_locator = page.locator('text="Factura no encontrada"')
+                error_locator2 = page.locator('text="No se puede acceder a este sitio web"')
+                # if await error_locator2.is_visible():
+                if  error_locator2.is_visible():
+                    raise GETRequestError("No se puede acceder a SIAT ")
                     
-                    # 3. La descarga ya ha sido capturada por 'download_info'.
-                    download = await download_info.value
+                # if await error_locator.is_visible():
+                if  error_locator.is_visible():
+                    raise GETRequestError("Factura incorrecta verifique url")
                     
-                        
-                    nombre_archivo=data["nit_emisor"]+"_"+response_model.get_datetime().strftime("%Y-%m-%d")+"_factN_"+str(response_model.nFactura)+".pdf"
-                    file_path = path / nombre_archivo
-
-                    await download.save_as(file_path)
-                    pdf_io=file_path
                 
-                    print(f"🎉 ¡PDF descargado con éxito! fin automatizacion Guardado como: {file_path}")
-                except Exception as e:
-                    raise PDFRequestError(e)
-            response_model.complete=True
-            response_model.status="Complete"
-            print("🎉✅ ¡Éxito! completo.")
-            # return response_model,pdf_io
-        except GETRequestError as e:
-            print(f"Error: {e}")
-            response_model.status=f"{str(e)}"
-            response_model.complete=False
-        except ScraperError as e:
-            print(f"Error scrapping: {e}")
-            response_model.status=f"Error Scrapping: {str(e)}"
-            response_model.complete=False
-            
-        except PDFRequestError as e :
-            response_model.status=f"Error al descargar PDF: {str(e)}"
-            response_model.complete=False
-            
-        except Exception as e:
-            print(f"❌ Ocurrió un error: {e}")
-            response_model.status=f"Error desconocido: {str(e)}"
-            response_model.complete=False
-        except KeyboardInterrupt :
-            print(f"❌ keyboard interrupt: ")
-            response_model.status=f"se cancelo manualmente"
-            response_model.complete=False
+                response_model.status="Factura Correcta... extrayendo data"
+                print("✅ ¡Éxito! La página cargó, las defensas fueron neutralizadas.")
+                # verificamos el mat-card esto podria cambiar despues atento al sitio 
+                try:
 
-        finally:
-            print("La automatización ha terminado")
-            await browser.close()
-            return response_model,pdf_io
+                    # html_content =  await page.locator('mat-card-content:has-text("Detalle de la Factura")').inner_html()
+                    html_content =  page.locator('mat-card-content:has-text("Detalle de la Factura")').inner_html()
+                except:
+                    raise ScraperError("Error no se encontro contenedor de los datos")
+                
+                scraper=getScrapp(html_content)
+                data=scraper[0]
+                if data:
+                    # print("exxtraccion exitosa ")
+                    # for key, value in data.items():
+                    #     print(f"{key}: {value}")
+                    response_model.nFactura=int(data["numero_factura"])
+                    response_model.cuf=data["cuf"]
+                    response_model.fecha=data["fecha_emision"]
+                    response_model.monto=float(data["monto_total"])
+                    response_model.estado_fact_url=data["estado_factura"]
+                    response_model.nitEmisor=data["nit_emisor"]
+                    response_model.comercio=data["razon_social_emisor"]
+                    response_model.nombreBeneficiario=data["nombre_cliente"]
+                    response_model.nitBeneficiario=data["documento_cliente"]
+
+                else:
+                    raise ScraperError(f" {scraper[1]}")
+                
+                
+                response_model.status=f"factura valida, datos extraidos guardar pdf:{savePdf}"
+                # validar????? no lo se 
+
+                if savePdf:
+                    
+                    print("Iniciando secuencia de descarga del PDF...")
+                    
+                    try:
+                        if type (path) == type("str"):
+                            ruta = Path(path)
+                            if not ruta.exists():
+                                print("¡La ruta existe!")
+                                raise PDFRequestError(" error en la path de guardado")
+                            path = Path(path)
+                        # Preparamos a Playwright para que espere una descarga.
+                        # async with page.expect_download() as download_info:
+                        with page.expect_download() as download_info:
+                            # 1. Localizamos el botón "Descargar Factura" por su texto y hacemos clic.
+                            #    Esto abrirá el menú desplegable.
+                            # await page.get_by_role("button", name="Descargar Factura").click()
+                            page.get_by_role("button", name="Descargar Factura").click()
+                            
+                            # 2. Localizamos la opción "ROLLO" en el menú que acaba de aparecer y hacemos clic.
+                            #    Playwright esperará automáticamente a que este elemento sea visible.
+                            # await page.get_by_role("menuitem", name="ROLLO").click()
+                            page.get_by_role("menuitem", name="ROLLO").click()
+                        
+                        # 3. La descarga ya ha sido capturada por 'download_info'.
+                        # download = await download_info.value
+                        download = download_info.value
+                        
+                            
+                        nombre_archivo=data["nit_emisor"]+"_"+response_model.get_datetime().strftime("%Y-%m-%d")+"_factN_"+str(response_model.nFactura)+".pdf"
+                        file_path = path / nombre_archivo
+
+                        # await download.save_as(file_path)
+                        download.save_as(file_path)
+                        pdf_io=file_path
+                    
+                        print(f"🎉 ¡PDF descargado con éxito! fin automatizacion Guardado como: {file_path}")
+                    except Exception as e:
+                        raise PDFRequestError(e)
+                response_model.complete=True
+                response_model.status="Complete"
+                print("🎉✅ ¡Éxito! completo.")
+                # return response_model,pdf_io
+            except GETRequestError as e:
+                print(f"Error: {e}")
+                response_model.status=f"{str(e)}"
+                response_model.complete=False
+            except ScraperError as e:
+                print(f"Error scrapping: {e}")
+                response_model.status=f"Error Scrapping: {str(e)}"
+                response_model.complete=False
+                
+            except PDFRequestError as e :
+                response_model.status=f"Error al descargar PDF: {str(e)}"
+                response_model.complete=False
+                
+            except Exception as e:
+                print(f"❌ Ocurrió un error: {e}")
+                response_model.status=f"Error desconocido: {str(e)}"
+                response_model.complete=False
+            except KeyboardInterrupt :
+                print(f"❌ keyboard interrupt: ")
+                response_model.status=f"se cancelo manualmente"
+                response_model.complete=False
+
+            finally:
+                print("La automatización ha terminado")
+                # await browser.close()
+                browser.close()
+                return response_model,pdf_io
+    except Exception as e:
+        print ("error en la mierda esta de playwrite ",e)
+        return e
 
 if __name__ == '__main__':
     response=asyncio.run(downloadFactura(savePdf=True))

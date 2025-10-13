@@ -6,6 +6,8 @@ import { jwtDecode } from 'jwt-decode';
 interface User {
   sub: string; // "subject", generalmente el email
   fullName: string; // Asumimos que podrías añadir el nombre al token
+  email?:string;
+  is_su?:boolean;
 }
 
 // 1. Definimos la "forma" de nuestro contexto

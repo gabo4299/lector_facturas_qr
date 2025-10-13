@@ -15,12 +15,19 @@ async def procesar_factura_completa_desde_url(url: str,
                                                 save_pdf: bool = False) -> FacturaElectronicaCreate:
     """
     Orquesta el proceso de descarga y procesamiento, capturando resultados parciales y errores.
+    el 30/09/2025 se hizo cambio fuerte en data_scraped,pdfRuta envez de await un asyncio to thread
     """
     # 1. Descargar los datos iniciales (GET) y el PDF (POST)
-    data_scraped,pdfRuta = await downloadFactura(url_factura=url,savePdf=save_pdf)
+    # data_scraped,pdfRuta = await downloadFactura(url_factura=url,savePdf=save_pdf)
+    data_scraped, pdfRuta = await asyncio.to_thread(
+            downloadFactura,    # La función síncrona a ejecutar
+            url_factura=url,    # Argumentos para esa función
+            savePdf=save_pdf
+        )
+    
     
 
-    
+
     # Preparamos un diccionario con los datos que tenemos hasta ahora, incluyendo el estado.
     datos_factura = {
         "url": url,
@@ -59,7 +66,7 @@ async def procesar_factura_completa_desde_url(url: str,
             "pdfIO":str(pdfRuta)if save_pdf else None
 
         })
-
+        
         
         
 
@@ -102,6 +109,7 @@ async def tarea_de_scraping_y_actualizacion(factura_id: int, url: str,proyect_id
         return db_fact_update
 
     except Exception as e:
+        print(f"   Tipo de Error: {type(e).__name__}")
         print(f"Error en la tarea en segundo plano para factura ID {factura_id}: {e}")
         # Aquí podrías actualizar la factura con un estado de "error"
 

@@ -19,11 +19,12 @@ interface BatchOrCategory {
 }
 
 export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoiceCreated }: ModalProps) => {
-  const [savePdf, setSavePdf] = useState(true);
+  const [savePdf, setSavePdf] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<number | undefined>();
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
   const [scannedUrl, setScannedUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false); // 👈 1. Estado para mostrar/ocultar el input
 
   const [batches, setBatches] = useState<BatchOrCategory[]>([]);
   const [categories, setCategories] = useState<BatchOrCategory[]>([]);
@@ -52,6 +53,14 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
     };
   }, [isOpen, projectId]);
 
+
+    const handleManualUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setScannedUrl(e.target.value);
+    if (e.target.value) {
+      stopCameraScanner(); // Detiene la cámara si el usuario empieza a escribir
+    }
+  };
+  
   const startCameraScanner = () => {
     if (scannerRef.current) return;
     const qrCodeScanner = new Html5Qrcode("qr-reader");
@@ -145,6 +154,9 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
               >
                 Subir Foto de QR
               </button>
+               <button type="button" onClick={() => setShowManualInput(true)} className="text-sm text-blue-600 hover:underline">
+                  Ingresar URL manualmente
+                </button>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
             </>
           ) : (
@@ -152,6 +164,24 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
               <p className="text-green-600 font-bold">¡Código QR escaneado con éxito!</p>
               <p className="text-xs text-gray-600 break-all mt-2">{scannedUrl}</p>
               <button onClick={() => setScannedUrl('')} className="text-sm text-blue-500 mt-2">Escanear de nuevo</button>
+            </div>
+          )}
+
+          {showManualInput && !scannedUrl && (
+            <div>
+              <label htmlFor="manual_url" className="block text-sm font-medium text-gray-700 mb-1">
+                Pega la URL del QR aquí
+              </label>
+              <input 
+                id="manual_url"
+                type="url"
+                placeholder="https://siat.impuestos.gob.bo/..."
+                onChange={handleManualUrlChange}
+                className="w-full px-3 py-2 border rounded-md shadow-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button type="button" onClick={() => setShowManualInput(false)} className="text-sm text-blue-600 hover:underline mt-2">
+                Volver al escáner
+              </button>
             </div>
           )}
         </div>

@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException,status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from backend.crud import crud_categoria, crud_facturas_electronicas, crud_facturas_manuales, crud_proyecto
+from backend.crud import crud_categoria,crud_users, crud_facturas_electronicas, crud_facturas_manuales, crud_proyecto
 from backend.schemas import schemas
 from backend.db import models
 from backend.api import auth
@@ -54,13 +54,38 @@ async def crear_proyecto(proyecto: schemas.ProyectoCreate,
     return await crud_proyecto.create_proyecto(db=db, proyecto=proyecto, propietario_id=current_user.id)
 
 
-@router.get("/", response_model=List[schemas.Proyecto])
+@router.get("/", response_model=List[schemas.ProyectoInfo])
 async def leer_proyectos_del_usuario(
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_active_user),
     
 ):
-    return await crud_proyecto.get_proyectos_by_user(db, propietario_id=current_user.id)
+    proyectos_schema=await crud_proyecto.get_proyectos_by_user(db, propietario_id=current_user.id)
+    proyectos_info_list = []
+    for proyecto in proyectos_schema:
+        suma_total = await crud_proyecto.get_suma_total_proyecto(db, proyecto_id=proyecto.id)
+        suma_facturas_manuales = await crud_proyecto.get_suma_manuales_proyecto(db, proyecto_id=proyecto.id)
+        suma_facturas_electronicas = await crud_proyecto.get_suma_electronicas_proyecto(db, proyecto_id=proyecto.id)
+        count_manuales=await crud_proyecto.get_count_facturas_manuales(db, proyecto_id=proyecto.id)
+        count_electronicas=await crud_proyecto.get_count_facturas_electronicas(db, proyecto_id=proyecto.id)
+        resumen_batches = await crud_proyecto.get_resumen_batches_por_proyecto(db, proyecto_id=proyecto.id)
+        proyecto_data = schemas.Proyecto.model_validate(proyecto).model_dump()
+
+        proyecto_data['suma_total'] = suma_total
+        proyecto_data['cantidad_facturas_manuales'] = count_manuales
+        proyecto_data['cantidad_facturas_electronicas'] = count_electronicas
+        proyecto_data['suma_facturas_manuales'] = suma_facturas_manuales
+        proyecto_data['suma_facturas_electronicas'] = suma_facturas_electronicas
+        proyecto_data['batches'] = resumen_batches # Sobrescribe la lista de batches simple
+        proyecto_data['porcentajeGanado'] = suma_total * 0.03
+
+
+        proyecto_info = schemas.ProyectoInfo(**proyecto_data)
+        proyectos_info_list.append(proyecto_info)
+
+
+
+    return proyectos_info_list
 
 
 @router.get("/{proyecto_id}", response_model=schemas.Proyecto)
@@ -129,6 +154,23 @@ async def obtener_detalle_facturas(
         "facturas_manuales": facturas_manuales,
         "facturas_electronicas": facturas_electronicas
     }
+
+@router.get("/facturas/paginated",response_model=schemas.PaginatedFacturasResponse, tags=["Proyectos facturas"])
+async def buscadorFacturas(
+    db: AsyncSession = Depends(get_db)
+    ,filtros: schemas.FiltrosFactura = Depends(),
+     current_user: models.User = Depends(auth.get_current_active_user)
+):
+    """
+        busca facturas
+        """
+    resultado = await crud_proyecto.buscar_facturas_unificadas(
+        db, filtros=filtros, user_id=current_user.id
+    )
+
+    print (resultado["items"])
+    return resultado
+    raise HTTPException(status_code=400,detail="sisi")
 
 @router.get("/{proyecto_id}/check_facturas")
 async def hacerCheckfacturas(
@@ -206,7 +248,7 @@ async def actualizar_proyecto(
     db: AsyncSession = Depends(get_db)
 ):
     if proyecto_update.nombre:
-        db_proyecto = await crud_proyecto.get_proyecto_by_name(db, proyecto_name=proyecto.nombre)
+        db_proyecto = await crud_proyecto.get_proyecto_by_name(db, proyecto_name=proyecto_update.nombre)
         if db_proyecto :
             raise HTTPException(status_code=409, detail="Proyecto existente")
     """Actualiza un proyecto. Solo para dueños o editores."""
@@ -217,7 +259,7 @@ async def actualizar_proyecto(
 async def eliminar_proyecto(
     proyecto_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_active_user)
+    current_user: models.User = Depends(require_role(allowed_roles=["dueño"]))
 ):
     """
     Elimina un proyecto.
@@ -228,8 +270,7 @@ async def eliminar_proyecto(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proyecto no encontrado")
     
     # --- Verificación de Pertenencia ---
-    if db_proyecto.propietario_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para eliminar este proyecto")
+    
         
     await crud_proyecto.delete_proyecto(db=db, proyecto_id=proyecto_id)
     return
@@ -245,15 +286,20 @@ async def anadir_miembro(
     Solo el dueño del proyecto puede realizar esta acción.
     """
     # Verificar que el usuario a añadir no sea el propio dueño
-    if miembro_data.usuario_id == proyecto.propietario_id:
+    usuario_a_agregar= await crud_users.get_user_by_email(db,miembro_data.email)
+    if not usuario_a_agregar:
+        raise HTTPException(status_code=400, detail="usuario no encontrado")
+    if usuario_a_agregar.id == proyecto.propietario_id:
         raise HTTPException(status_code=400, detail="El dueño del proyecto no puede ser añadido como miembro.")
     
     # Verificar que el usuario no sea ya miembro
-    miembro_existente = await crud_proyecto.get_asociacion_usuario_proyecto(db, user_id=miembro_data.usuario_id, proyecto_id=proyecto.id)
+    miembro_existente = await crud_proyecto.get_asociacion_usuario_proyecto(db, user_id=usuario_a_agregar.id, proyecto_id=proyecto.id)
     if miembro_existente:
         raise HTTPException(status_code=409, detail="Este usuario ya es miembro del proyecto.")
 
-    await crud_proyecto.anadir_miembro_a_proyecto(db=db, miembro_data=miembro_data, proyecto_id=proyecto.id)
+    await crud_proyecto.anadir_miembro_a_proyecto(db=db, miembro_data=miembro_data,
+                                                  id_user=usuario_a_agregar.id, 
+                                                   proyecto_id=proyecto.id)
     return {"detail": "Miembro añadido exitosamente."}
 
 

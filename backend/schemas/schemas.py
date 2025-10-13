@@ -1,7 +1,8 @@
 # schemas.py
-from pydantic import BaseModel,EmailStr
-from datetime import datetime
-from typing import Optional, List
+from pydantic import BaseModel,EmailStr, Field, computed_field
+
+from datetime import date, datetime
+from typing import Optional, List, Union,Annotated 
 
 from typing import Literal 
 
@@ -22,7 +23,12 @@ class Categoria(CategoriaBase):
     id: int
     class Config:
         from_attributes = True
-
+class CategoriaPaginada(BaseModel):
+    items: list[Categoria]
+    total: int
+    page: int
+    size: int
+    pages: int
 class EmpresaBase(BaseModel):
     nombre: str
     nit:str
@@ -39,6 +45,15 @@ class Empresa(EmpresaBase):
     class Config:
         from_attributes = True
 
+class EmpresasPaginada(BaseModel):
+    items: list[Empresa]
+    total: int
+    page: int
+    size: int
+    pages: int
+
+
+
 class BatchBase(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
@@ -53,6 +68,8 @@ class BatchResumen(BaseModel):
     # Usamos el schema 'Batch' existente para mostrar los datos del batch
     batch_info: Batch
     monto_total_batch: float = 0.0
+    cantidad_manuales:Optional[int] =0
+    cantidad_electronicas:Optional[int] =0
 
     class Config:
         from_attributes = True
@@ -105,6 +122,16 @@ class Proyecto(ProyectoBase):
     batches: List[Batch] = [] # Lista de batches
     class Config: from_attributes = True
 
+
+class ProyectoInfo(Proyecto):
+    suma_total:Optional[float] = None
+    cantidad_facturas_electronicas:Optional[int] = None
+    cantidad_facturas_manuales:Optional[int] = None
+    suma_facturas_electronicas:Optional[float] = None
+    suma_facturas_manuales:Optional[float] = None
+    porcentajeGanado:Optional[float] = None
+    batches: List[BatchResumen] = []
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -120,6 +147,7 @@ class DetalleItem(BaseModel):
 
 # --- Factura Manual ---
 class FacturaManualBase(BaseModel):
+    tipo: Literal["manual"] = "manual" 
     Nit_Beneficiario: str
     monto_total: float
     fecha: Optional[datetime] = None
@@ -164,6 +192,7 @@ class FacturaElectronicaInicial(BaseModel):
 
 # --- Factura Electrónica ---
 class FacturaElectronicaBase(BaseModel):
+    tipo: Literal["electronica"] = "electronica"
     url: str
     monto_total: Optional[float] = None
     Nit_Beneficiario: Optional[str] = None
@@ -173,24 +202,25 @@ class FacturaElectronicaBase(BaseModel):
     monto_fiscal: Optional[float] = None
     factura_especial: Optional[bool] = False
     save_pdf:Optional[bool]=False
+    status: Optional[str] = "pendiente"
+    complete:Optional[bool]=False
+    pdfIO:Optional[str]=None
     #  aqui nos recomendaron 
     # empresa: Optional[str] = None
     # mejor solo un status mas limmpio 
-    status: Optional[str] = "pendiente"
-    complete:Optional[bool]=False
     # status_Getrequest:Optional[bool]=False
     # status_Postrequest:Optional[bool]=False
     # status_PDFrequest:Optional[bool]=False
     # msg_get_request:Optional[str] = None
     # msg_post_request:Optional[str] = None
     # msg_pdf_request:Optional[dict] = None
-    pdfIO:Optional[str]=None
+    
     # #####################################################################
     # batch: Optional[int] = None
     # categoria_id: Optional[int] = None
     # proyecto_id: Optional[int] = None
-    class Config:
-        from_attributes = True
+    # class Config:
+    #     from_attributes = True
 
 
 
@@ -239,7 +269,7 @@ class FacturasDelProyectoResponse(BaseModel):
 
 # Nuevo schema para la gestión de miembros
 class MiembroProyecto(BaseModel):
-    usuario_id: int
+    email:str
     # Usamos Literal para asegurar que el rol solo pueda ser 'editor' o 'lector'
     rol: Literal['editor', 'lector']
 
@@ -248,5 +278,39 @@ class MiembroProyectoUpdate(BaseModel):
     rol: Literal['editor', 'lector']
 
 
+
+class FiltrosFactura(BaseModel):
+    # Un flag para elegir el tipo de factura
+    tipo_factura: Optional[Literal['todas', 'manual', 'electronica']] = 'todas'
+    
+    # Filtros comunes
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    monto_min: Optional[float] = None
+    monto_max: Optional[float] = None
+    categoria_id: Optional[int] = None
+    empresa_id: Optional[int] = None
+    
+    # Filtros específicos de FacturaElectronica
+    complete: Optional[bool] = None
+    factura_especial: Optional[bool] = None
+        # Parámetros de Paginación
+    page: int = 1
+    size: int = 20
+    
+    # Parámetros de Ordenamiento
+    sort_by: Literal['fecha', 'monto_total','empresa', 'categoria', 'batch'] = 'fecha'
+    sort_order: Literal['asc', 'desc'] = 'desc'
+
+    # Parámetro de Filtro de Proyecto (opcional)
+    proyecto_id: Optional[int] = None
+
+
+FacturaUnion = Union[FacturaManual, FacturaElectronica]
+# --- Schema para la Respuesta Paginada ---
+class PaginatedFacturasResponse(BaseModel):
+    total: int
+    items: List[Annotated[FacturaUnion, Field(discriminator='tipo')]]
+    
 Proyecto.model_rebuild()
 User.model_rebuild()
