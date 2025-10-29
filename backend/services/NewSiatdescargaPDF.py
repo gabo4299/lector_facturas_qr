@@ -180,13 +180,13 @@ def getScrapp(data):
                         if numero:
                             numero_cuest=  numero[0].replace(",", "")
                             numero_float = float(numero_cuest)
-                            print(f"{key_map[label_text]} : {value_span.text.strip()} y el label text:{label_text}")
-                            print("\n\n\n\n\n\nMonto total float : ",numero_float, numero_cuest, numero)
+                            # print(f"{key_map[label_text]} : {value_span.text.strip()} y el label text:{label_text}")
+                            # print("\n\n\n\n\n\nMonto total float : ",numero_float, numero_cuest, numero)
                             datos_factura[key_map[label_text]] = numero_float
                         else:
                             datos_factura[key_map[label_text]] = 0.0
                     else:
-                        print(f"{key_map[label_text]} : {value_span.text.strip()} y el label text:{label_text}")
+                        # print(f"{key_map[label_text]} : {value_span.text.strip()} y el label text:{label_text}")
                         datos_factura[key_map[label_text]] = value_span.text.strip()
         return datos_factura,True
     except Exception as e:
@@ -202,13 +202,13 @@ def downloadFactura(url_factura=url_scraper,
     try:
          with sync_playwright() as p:
             try:
-                print("0.1, with")
+                
                 if not isinstance(url_factura, str) or not url_factura.startswith('http'):
                     raise GETRequestError(" URL ERROR La entrada debe ser una URL válida en formato string.")
-                print("0.2, with")
+                
                 
                 try : 
-                    print("1, pased")
+                    
                     parsed_url = urlparse(url_factura)
                     params = parse_qs(parsed_url.query)
                     url_nitEmisor = params['nit'][0]
@@ -218,7 +218,7 @@ def downloadFactura(url_factura=url_scraper,
                 except:
                     raise  GETRequestError(" URL ERROR no se pudieron extraer los parametros cuf,numero y nit")
 
-                print("2 launch cronium")
+
                 # browser = await p.chromium.launch(headless=True)
                 # context = await browser.new_context()
                 # page = await context.new_page()
@@ -238,7 +238,6 @@ def downloadFactura(url_factura=url_scraper,
                 context.add_init_script(interceptor_script)
 
         
-                print("Navegando al sitio con el antídoto inyectado...")
                 try:
                     # response= await page.goto(url_factura, timeout=60000, wait_until='networkidle')
                     response=  page.goto(url_factura, timeout=60000, wait_until='networkidle')
@@ -248,7 +247,6 @@ def downloadFactura(url_factura=url_scraper,
                 # # Damos tiempo a que la aplicación React cargue y renderice todo
                 # await page.wait_for_load_state('networkidle', timeout=30000)
                 # print("respuesta",response, response.ok)
-                print("4, response")
                 if not response.ok:
                     raise GETRequestError(f"Servidor caido  code: {str(response.status)}")
                 # print ("estatus response ", response.status)
@@ -304,7 +302,7 @@ def downloadFactura(url_factura=url_scraper,
                         if type (path) == type("str"):
                             ruta = Path(path)
                             if not ruta.exists():
-                                print("¡La ruta existe!")
+                                # print("¡La ruta existe!")
                                 raise PDFRequestError(" error en la path de guardado")
                             path = Path(path)
                         # Preparamos a Playwright para que espere una descarga.

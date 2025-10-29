@@ -2,3 +2,4 @@ __pycache__
 alembic/__pycache__
 api/__pycache__
 .env
+client_secret.json

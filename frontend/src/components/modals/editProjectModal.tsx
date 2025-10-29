@@ -3,12 +3,12 @@ import { useState, useEffect, useRef } from 'react';
 import type { FormEvent, ChangeEvent } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { updateProject, updateCollaboratorRole,deleteCollaborator  } from '../../api/projectService';
-import type { ProjectInfo,UserProject } from '../../types'; // Importa tus tipos
+import type { ProjectInfo,UserProject,ProjectAdmin } from '../../types'; // Importa tus tipos
 
 interface EditProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  project: ProjectInfo | null;
+  project: ProjectInfo|ProjectAdmin | null;
   onProjectUpdated: () => void;
 }
 

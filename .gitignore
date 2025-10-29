@@ -2,3 +2,8 @@
 /backend/sandbox
 
 .env
+*.sql
+*.dump
+client_secret.json
+*.pem
+

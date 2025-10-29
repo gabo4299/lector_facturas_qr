@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { getCompanies } from '../../api/companyService';
-import type {Company}from '../../api/companyService';
+import type {Company}from '../../types';
 import { createManualInvoice } from '../../api/invoiceService';
 import { getBatchesForProject, getCategoriesForProject } from '../../api/projectService';
 interface AddManualInvoiceModalProps {
@@ -72,7 +72,7 @@ export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficia
 
   const handleSugerenciaClick = (empresa: Company) => {
     setNombreEmpresa(empresa.nombre);
-    setNitEmisor(empresa.nit);
+    setNitEmisor(empresa.nit!);
     setSelectedCompany(empresa); // Guarda la empresa seleccionada
     setSugerencias([]);
   };

@@ -19,6 +19,7 @@ app.add_middleware(
     allow_credentials=True, # Permite cookies/credenciales
     allow_methods=["*"],    # Permite todos los métodos (GET, POST, etc.)
     allow_headers=["*"],    # Permite todas las cabeceras
+    expose_headers=["Content-Disposition"]
 )
 # Incluye el router de facturas en la aplicación principal
 app.include_router(

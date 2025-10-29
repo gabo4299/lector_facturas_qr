@@ -72,3 +72,25 @@ export const register = async (fullName:string, email:string, password:string) =
     throw new Error('Ocurrió un error inesperado.');
   }
 };
+
+
+/**
+ * Inicia sesión o crea un usuario usando un token de acceso de Google.
+ * @param {string} authCode - El token obtenido de Google.
+ * @returns {Promise<string>} Tu propio token JWT del backend.
+ */
+export const loginWithGoogle = async (authCode: string) => {
+  try {
+    // Asegúrate de que este sea tu endpoint
+    console.log("evniandoi el codigo ",authCode)
+    const response = await apiClient.post('/auth/google', {
+      code: authCode,
+    });
+    // Asumimos que tu backend devuelve { access_token: "tu_jwt" }
+    return response.data.access_token;
+  } catch (error) {
+    // ... (manejo de errores)
+    console.log("errror : google ",error)
+    throw new Error('La autenticación con Google falló en el servidor.');
+  }
+};

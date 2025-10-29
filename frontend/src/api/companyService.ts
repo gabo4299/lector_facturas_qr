@@ -2,6 +2,7 @@
 import apiClient from './apiClient';
 import type { Company } from '../types';
 import { isAxiosError } from 'axios';
+import { logout } from './authService';
 
 
 
@@ -53,10 +54,25 @@ export const getCompaniesPagination = async (page: number,
     });
     return response.data;
   } catch (error) {
-    console.error("Error al obtener empresas:", error);
-    throw new Error('No se pudieron cargar las empresas.');
+    
+
+
+    if (isAxiosError(error)) {
+          if (error.response?.status === 404) {
+            throw new Error('Empresa no  encontrada.');
+          }
+          if (error.response?.status === 403 || error.response?.status === 401) {
+            logout()
+            window.location.href = '/login';
+            throw new Error('No tienes permiso para ver empresas.');
+    
+          }
+             
+        }
+        throw new Error('No se pudieron cargar las empresas');
+      }
   }
-};
+;
 
 /**
  * Elimina una empresa por su ID.

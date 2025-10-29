@@ -1,4 +1,4 @@
-# crud_facturas_manuales.py
+
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -6,7 +6,7 @@ from backend.db.models import FacturaManual,Proyecto,ProyectoUsuario
 from backend.schemas.schemas import FacturaManualCreate,FacturaManualUpdate
 from backend.crud import crud_empresa
 from sqlalchemy.orm import joinedload, selectinload 
-# --- CRUD Factura Manual ---
+
 async def get_factura_manual(db: AsyncSession, factura_id: int):
     """
     Busca una factura manual por ID, cargando explícitamente sus relaciones.
@@ -49,6 +49,7 @@ async def create_factura_manual(db: AsyncSession, factura: FacturaManualCreate):
     datos_factura = factura.model_dump()
     nit_empresa = datos_factura.pop("nit_emisor", None)
     nombre_empresa = datos_factura.pop("nombre_empresa", None)
+    datos_factura.pop("tipo", None)
     
     db_factura = FacturaManual(**datos_factura)
     if nit_empresa:

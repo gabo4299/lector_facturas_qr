@@ -50,7 +50,7 @@ async def delete_categoria(db: AsyncSession, categoria_id: int):
     elimina categoria
     """
     # Busca la factura que se va a eliminar
-    db_categoria = await get_categoria(db, factura_id=categoria_id)
+    db_categoria = await get_categoria(db, categoria_id=categoria_id)
     if not db_categoria:
         return None # Retorna None si no se encontró
 

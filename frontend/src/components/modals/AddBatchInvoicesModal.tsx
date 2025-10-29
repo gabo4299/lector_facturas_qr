@@ -1,11 +1,10 @@
 // src/components/forms/addBatchInvoicesModal.tsx
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 import { getBatchesForProject, getCategoriesForProject } from '../../api/projectService';
 import { createElectronicInvoice } from '../../api/invoiceService';
 import beepSoundURL from '../../assets/beep.mp3';
-
+import QrInputModal from '../../features/QrReader/QrInputModal';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -27,7 +26,7 @@ export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCre
   const [categories, setCategories] = useState<BatchOrCategory[]>([]);
 
   const modalRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [savePdf, setSavePdf] = useState(false); // <-- Checkbox state
   const playScanSound = () => new Audio(beepSoundURL).play();
   
@@ -65,35 +64,12 @@ export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCre
     };
     fetchData();
 
-    const qrCodeScanner = new Html5Qrcode("qr-batch-scanner");
+   
 
-    qrCodeScanner.start(
-      { facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } },
-      (decodedText) => processDecodedText(decodedText),
-      undefined
-    ).catch((err) => setStatus({ type: 'error', message: "No se pudo iniciar la cámara." }));
-
-    return () => {
-      if (qrCodeScanner && qrCodeScanner.isScanning) {
-        qrCodeScanner.stop().then(() => qrCodeScanner.clear()).catch(err => console.error("Fallo al detener escáner.", err));
-      }
-    };
+    
   }, [isOpen, projectId]);
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files) return;
-    const files = Array.from(event.target.files);
-    const fileScanner = new Html5Qrcode("qr-batch-scanner"); 
-    for (const file of files) {
-      try {
-        const decodedText = await fileScanner.scanFile(file, false);
-        processDecodedText(decodedText);
-      } catch (err) {
-        setStatus({ type: 'error', message: `Error en archivo ${file.name}.` });
-      }
-    }
-    if(fileInputRef.current) fileInputRef.current.value = "";
-  };
+  
   
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -108,7 +84,7 @@ export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCre
         url,
         save_pdf: savePdf,
         batch_id: selectedBatch,
-        category_id: selectedCategory
+        categoria_id: selectedCategory
       }))
     );
     
@@ -132,6 +108,9 @@ export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCre
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
 
+  const handleRemoveUrl = (indexToRemove: number) => {
+    setScannedUrls(prevUrls => prevUrls.filter((_, index) => index !== indexToRemove));
+  };
 
   if (!isOpen) return null;
 
@@ -143,13 +122,11 @@ export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCre
         <div className="grid grid-cols-2 gap-4">
           {/* Columna Izquierda: Cámara y Controles */}
           <div className="flex flex-col">
-            <div className="border rounded-md text-center bg-gray-50 flex-grow">
-              <div id="qr-batch-scanner" className="w-full"></div>
-            </div>
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="mt-2 px-4 py-2 font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100 text-sm">
-              Subir Foto(s) de QR
-            </button>
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" multiple />
+             <QrInputModal
+             isOpen={isOpen}
+             onQrDetected={processDecodedText}
+             onClose={()=>console.log("cerrando")}
+             />
           </div>
 
           {/* Columna Derecha: Lista y Formulario */}
@@ -158,7 +135,21 @@ export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCre
             <div className="border rounded-md mt-1 h-48 overflow-y-auto p-2 bg-gray-50 text-xs">
               {scannedUrls.length > 0 ? (
                 <ul>
-                  {scannedUrls.map((url, index) => <li key={index} className="truncate p-1">{index + 1}. {url}</li>)}
+                  {scannedUrls.map((url, index) => 
+                  <li key={index} 
+                  className="flex justify-between items-center p-1 hover:bg-gray-200 rounded"
+                  >
+                    <span className="truncate flex-grow pr-2">{index + 1}. {url}</span>
+                    <button 
+                        onClick={() => handleRemoveUrl(index)}
+                        className="p-1 text-gray-400 hover:text-red-600 rounded-full flex-shrink-0"
+                        title="Eliminar de la lista"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                      </li>)}
                 </ul>
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-400">La lista de facturas escaneadas aparecerá aquí.</div>

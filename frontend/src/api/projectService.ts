@@ -2,13 +2,19 @@
 import apiClient from './apiClient';
 import { isAxiosError } from 'axios';
 import {logout} from './authService'
+// import { useAuth } from '../hooks/useAuth'; // Importamos nuestro hook
+
 import type {addMemberToProject} from '../types'
+
+
+ 
 /**
  * Obtiene los datos de un proyecto específico por su ID.
  * @param {string} projectId - El ID del proyecto.
  * @returns {Promise<any>} Los datos del proyecto, incluyendo sus facturas.
  */
 export const getProjectById = async (projectId: string) => {
+  
   try {
     const response = await apiClient.get(`/proyectos/${projectId}`);
     return response.data;
@@ -19,6 +25,8 @@ export const getProjectById = async (projectId: string) => {
       }
       if (error.response?.status === 403 || error.response?.status === 401) {
         logout()
+        window.location.href = '/login';
+        
         throw new Error('No tienes permiso para ver este proyecto.');
 
       }
@@ -43,6 +51,28 @@ export const getProjectsByUser = async () => {
       }
       if (error.response?.status === 403 || error.response?.status === 401) {
         logout()
+        window.location.href = '/login';
+        throw new Error('No tienes permiso para ver este proyecto.');
+
+      }
+    }
+    throw new Error('Ocurrió un error al cargar el proyecto.');
+  }
+};
+
+
+export const getProjectsall = async () => {
+  try {
+    const response = await apiClient.get('/proyectos/all'); // Asegúrate que este sea tu endpoint
+    return response.data;
+  } catch (error) {
+   if (isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('El proyecto no fue encontrado.');
+      }
+      if (error.response?.status === 403 || error.response?.status === 401) {
+        logout()
+        window.location.href = '/login';
         throw new Error('No tienes permiso para ver este proyecto.');
 
       }
@@ -65,6 +95,7 @@ export const deleteProject = async (projectId: string) => {
       }
       if (error.response?.status === 403 || error.response?.status === 401) {
         logout()
+        window.location.href = '/login';
         throw new Error('No tienes permiso para ver este proyecto.');
 
       }
@@ -151,6 +182,17 @@ export const getCategoriesForProject = async () => {
     return response.data;
   } catch (error) {
     console.error("Error al obtener categorías:", error);
+    return [];
+  }
+};
+
+export const getResumeProject = async (projectId: string) => {
+  try {
+
+    const response = await apiClient.get(`/proyectos/${projectId}/fullresume`); // Asumiendo este endpoint
+    return response.data;
+  } catch (error) {
+    console.error("Error al obtener resumen de proyecto:", error);
     return [];
   }
 };
@@ -249,5 +291,80 @@ export const deleteCollaborator = async (projectId: string, userId: number) => {
       throw new Error(error.response?.data?.detail || 'No se pudo eliminar al colaborador.');
     }
     throw new Error('Ocurrió un error inesperado.');
+  }
+};
+
+
+export const getPaginatedProjects = async (page: number,
+   limit: number, 
+   searchTerm: string,
+    sortBy: string,
+     sortOrder: string) => {
+  
+
+  try {
+    const response = await apiClient.get('/proyectos/paginated', {
+      params: {
+        page: page,
+        size: limit, // 10 empresas por página
+        search: searchTerm,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error al obtener empresas:", error);
+    throw new Error('No se pudieron cargar las empresas.');
+  }
+};
+
+
+
+export const getReport = async (projectId: string) => {
+  try {
+    const response = await apiClient.get(`/proyectos/${projectId}/reporte`,{responseType: 'arraybuffer'});
+    const contentDisposition= response.headers['content-disposition']
+     let filename = 'archivo.pdf'; // Valor por defecto
+
+    if (contentDisposition) {
+      
+      const match = contentDisposition.match(/filename="(.+)"/);
+
+      
+      if (match && match[1]) {
+        filename = match[1]; // Si encontramos el nombre, lo asignamos
+      }
+    }
+   
+
+    // Convertimos el arraybuffer a un Blob
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+
+    // Usamos FileSaver.js para guardar el archivo con el nombre obtenido
+    const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;  // Nombre del archivo que se descargará
+      a.click();
+
+      // Limpia el objeto URL después de usarlo
+      window.URL.revokeObjectURL(url);
+  } catch (error) {
+    if (isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('El proyecto no fue encontrado.');
+      }
+      if (error.response?.status === 403 || error.response?.status === 401) {
+        logout()
+        window.location.href = '/login';
+        throw new Error('No tienes permiso para ver este proyecto.');
+
+      }
+          if (error.response?.status === 400) {
+        throw new Error('No hay facturas virutales.');
+      }
+    }
+    throw new Error('Ocurrió un error al procesar el proyecto.');
   }
 };

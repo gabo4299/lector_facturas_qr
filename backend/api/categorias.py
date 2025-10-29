@@ -31,7 +31,7 @@ async def leer_categorias_paginacion(
                         size: int = 10,
                         sort_by: str = "id", # Por defecto ordena por id
                         sort_order: str = "asc"):
-    print("entrooo")
+    
     categorias = await crud_categoria.get_categorias_paginacion(db, search=search,page=page,size=size,sort_by=sort_by,sort_order=sort_order)
 
     

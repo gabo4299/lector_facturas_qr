@@ -4,6 +4,7 @@ import React from 'react';
 interface Column<T> {
   header: string;
   accessor: keyof T;
+  render?: (item: T) => React.ReactNode; // Permite un renderizado personalizado
 }
 
 interface ReusableTableProps<T> {
@@ -45,7 +46,7 @@ export const ReusableTable = <T extends { id: number | string }>({ columns, data
             <tr key={item.id} className="hover:bg-gray-50">
               {columns.map((col) => (
                 <td key={String(col.accessor)} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                  {String(item[col.accessor])}
+                  {col.render ? col.render(item) : String(item[col.accessor])}
                 </td>
               ))}
               {renderActions && (

@@ -62,6 +62,9 @@ async def crear_factura_manual(factura: schemas.FacturaManualCreate,
         )
 
     # print("entro a post ",factura.model_dump())
+    
+
+
     return await crud_facturas_manuales.create_factura_manual(db=db, factura=factura)
 
 @router.get("/manuales/", response_model=List[schemas.FacturaManual])

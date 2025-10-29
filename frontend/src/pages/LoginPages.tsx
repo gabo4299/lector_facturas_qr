@@ -7,6 +7,8 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth'; // 👈 1. Importa useAuth
 import { register } from '../api/authService'; 
+import { GoogleLoginButton } from '../components/ui/GoogleLoginButton';
+
 
 const LoginPage = () => {
 
@@ -17,10 +19,27 @@ const [isLoginMode, setIsLoginMode] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
 
-  const { login, isAuthenticated } = useAuth();
+  const { login,googleLogin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [success, setSuccess] = useState<string | null>(null); // Para mensajes de éxito
   // Redirige si el usuario ya está autenticado
+
+
+  
+  
+  const handleGoogleSuccess = async (authCode: string) => {
+    try {
+      await googleLogin(authCode);
+      // navigate('/'); // Redirige al dashboard
+    } catch (err) {
+      console.log("error ",err)
+      setError('No se pudo iniciar sesión con Google.');
+    }
+  };
+  const handleGoogleError = () => {
+    setError('Hubo un problema con la autenticación de Google.');
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/', { replace: true });
@@ -35,7 +54,7 @@ const [isLoginMode, setIsLoginMode] = useState(true);
       if (isLoginMode) {
         // --- LÓGICA DE LOGIN ---
         await login(email, password);
-        navigate('/');
+        // navigate('/');
       } else {
         // --- LÓGICA DE REGISTRO ---
         await register(fullName, email, password);
@@ -98,6 +117,18 @@ const [isLoginMode, setIsLoginMode] = useState(true);
               {isLoginMode ? 'Ingresar' : 'Registrarse'}
             </button>
           </div>
+
+          <div className="my-6 flex items-center">
+          <div className="flex-grow border-t border-gray-300"></div>
+          <span className="mx-4 flex-shrink text-sm text-gray-500">O</span>
+          <div className="flex-grow border-t border-gray-300"></div>
+        </div>
+        
+        {/* 👇 Botón de Google 👇 */}
+        <GoogleLoginButton
+          onSuccess={handleGoogleSuccess}
+          onError={handleGoogleError}
+        />
         </form>
 
         {/* 4. Botón para cambiar entre modos */}

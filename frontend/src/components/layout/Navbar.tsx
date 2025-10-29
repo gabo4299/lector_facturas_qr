@@ -1,18 +1,18 @@
 // src/components/layout/Navbar.tsx
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth'; // Importamos nuestro hook
 import { useEffect, useRef, useState } from 'react';
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
    const isSuperUser = user?.is_su=== true;
-  const navigate = useNavigate();
+  
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const handleLogout = () => {
     logout(); // Llama a la función del contexto para limpiar el estado y el token
-    navigate('/login'); // Redirige al usuario a la página de login
+    
   };
 
 // Cierra el dropdown si se hace clic fuera de él

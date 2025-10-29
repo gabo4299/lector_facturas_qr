@@ -58,6 +58,7 @@ async def get_empresas_paginacion(db: AsyncSession,
         "id": models.Empresa.id,
         "nombre": models.Empresa.nombre,
         "nit": models.Empresa.nit,
+        "rubro": models.Empresa.rubro,
     }
     
     # Si el sort_by no es válido, usa 'id' por defecto
@@ -70,7 +71,8 @@ async def get_empresas_paginacion(db: AsyncSession,
         query = query.where(
             or_(
                 models.Empresa.nombre.ilike(f"%{search}%"), # ilike es case-insensitive
-                models.Empresa.nit.ilike(f"%{search}%")
+                models.Empresa.nit.ilike(f"%{search}%"),
+                models.Empresa.rubro.ilike(f"%{search}%")
             )
         )
     count_statement = select(func.count()).select_from(query.subquery())

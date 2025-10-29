@@ -1,0 +1,41 @@
+# 1. Usa una imagen base ligera de Python
+FROM python:3.10
+
+# 2. Establece el directorio de trabajo dentro del contenedor
+WORKDIR /app
+
+# Actualiza la lista de paquetes e instala la librería ZBar del sistema
+RUN apt-get update && \
+    apt-get install -y libzbar0 && \
+    pip install playwright && \
+    playwright install-deps chromium && \
+    playwright install chromium && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# 3. Copia solo el archivo de requerimientos primero para optimizar el caché de Docker
+COPY ./backend/requirements.txt .
+
+# 4. Instala las dependencias
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# 5. Copia todo el código de tu backend y los archivos de configuración
+COPY ./backend /app/backend
+COPY ./backend/alembic.ini /app/alembic.ini
+
+# COPY ./alembic /app/alembic
+# COPY alembic.ini /app/alembic.ini
+# COPY client_secret.json /app/client_secret.json
+
+# 6. Expone el puerto que tu aplicación usará
+EXPOSE 8000
+
+# 7. El comando que se ejecutará para iniciar tu app
+#    Primero corre las migraciones de Alembic y luego inicia Uvicorn.
+CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile certs/localhost+4-key.pem --ssl-certfile certs/localhost+4.pem"]
+
+
+
+
+

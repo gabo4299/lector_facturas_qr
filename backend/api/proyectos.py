@@ -1,4 +1,6 @@
+import io
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException,status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -8,7 +10,7 @@ from backend.db import models
 from backend.api import auth
 from backend.db.database import engine, AsyncSessionLocal
 from backend.services import factura_service
-
+from backend.services.generadorReporte import getReportePdf,pdfItem
 router = APIRouter()
 
 async def get_db():
@@ -54,6 +56,9 @@ async def crear_proyecto(proyecto: schemas.ProyectoCreate,
     return await crud_proyecto.create_proyecto(db=db, proyecto=proyecto, propietario_id=current_user.id)
 
 
+
+
+
 @router.get("/", response_model=List[schemas.ProyectoInfo])
 async def leer_proyectos_del_usuario(
     db: AsyncSession = Depends(get_db),
@@ -69,6 +74,8 @@ async def leer_proyectos_del_usuario(
         count_manuales=await crud_proyecto.get_count_facturas_manuales(db, proyecto_id=proyecto.id)
         count_electronicas=await crud_proyecto.get_count_facturas_electronicas(db, proyecto_id=proyecto.id)
         resumen_batches = await crud_proyecto.get_resumen_batches_por_proyecto(db, proyecto_id=proyecto.id)
+        resumen_categorias = await crud_proyecto.get_resumen_categoria_por_proyecto(db, proyecto_id=proyecto.id)
+        resumen_empresas= await crud_proyecto.get_resumen_empresa_por_proyecto(db, proyecto_id=proyecto.id)
         proyecto_data = schemas.Proyecto.model_validate(proyecto).model_dump()
 
         proyecto_data['suma_total'] = suma_total
@@ -77,6 +84,8 @@ async def leer_proyectos_del_usuario(
         proyecto_data['suma_facturas_manuales'] = suma_facturas_manuales
         proyecto_data['suma_facturas_electronicas'] = suma_facturas_electronicas
         proyecto_data['batches'] = resumen_batches # Sobrescribe la lista de batches simple
+        proyecto_data['categorias']=resumen_categorias
+        proyecto_data['empresas']=resumen_empresas
         proyecto_data['porcentajeGanado'] = suma_total * 0.03
 
 
@@ -87,6 +96,121 @@ async def leer_proyectos_del_usuario(
 
     return proyectos_info_list
 
+
+
+@router.get("/{proyecto_id}/reporte")
+async def getReporteProyecto(
+    db: AsyncSession = Depends(get_db),
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"]))
+    
+):
+    try: 
+        facturas_electronicas = await crud_facturas_electronicas.get_facturas_virtuales_electronicas_por_proyecto(
+            db=db, proyecto_id=proyecto.id
+        )
+        if len(facturas_electronicas) >0:
+            data=[]
+            
+            for i in facturas_electronicas:
+                data.append(pdfItem(NombreEmpresa=i.empresa.nombre,
+                                    NitEmisor=i.empresa.nit,
+                                    NFactura=i.n_factura,
+                                    Fecha=i.fecha.strftime('%d/%m/%Y'),
+                                    NitBeneficiario=i.Nit_Beneficiario,
+                                    MontoTotal=round(i.monto_total,2),
+                                    ruta=i.pdfIO))
+                # print(f"factura de {i.empresa.nombre} por el monto  de {round(i.monto_total,2)}")
+            buffer = io.BytesIO()
+            getReportePdf(data,buffer)
+            # Mover el "cursor" del buffer al inicio para leer su contenido
+            buffer.seek(0)
+
+            nameFile=proyecto.nombre.replace(" ", "_")
+            return StreamingResponse(
+                buffer,
+                media_type='application/pdf',
+                headers={
+                    'Content-Disposition': f'attachment; filename=Reporte_{nameFile}.pdf'
+                }
+            )
+        else:
+            raise HTTPException(status_code=400, detail=f"No existen facturas virtuales")    
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=f"Error al intentar procesar PDF {e}")
+
+
+@router.get("/all", response_model=List[schemas.Proyecto])
+async def leer_proyectos_del_usuario(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_active_user),
+    
+):
+    if current_user.is_superuser == True:
+        proyectos_schema=await crud_proyecto.get_proyectos_all(db)
+        return proyectos_schema
+    else:
+        raise HTTPException(status_code=403, detail="No eres miembro de este proyecto.")
+        
+
+@router.get("/paginated", response_model=schemas.PaginatedProyectosAdminResponse)
+async def leer_proyectos_paginated(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_active_user),
+    search: str | None = None,
+                    page: int = 1,
+                    size: int = 10,
+                    sort_by: str = "id", # Por defecto ordena por id
+                    sort_order: str = "asc"
+    
+):
+    if current_user.is_superuser == True:
+        proyectos_schema=await crud_proyecto.get_proyectos_paginated_admin(db,
+                                                                        search=search,
+                                                                        page=page,
+                                                                        sort_by=sort_by,
+                                                                        sort_order=sort_order,
+                                                                        size=size)
+    
+        return proyectos_schema
+    raise HTTPException(status_code=403, detail="No eres miembro de este proyecto.")
+
+
+
+
+@router.get("/{proyecto_id}/fullresume", response_model=schemas.ProyectoInfo)
+async def leer_proyectos_del_usuario(
+    db: AsyncSession = Depends(get_db),
+    proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"]))
+    
+):
+    
+    suma_total = await crud_proyecto.get_suma_total_proyecto(db, proyecto_id=proyecto.id)
+    suma_facturas_manuales = await crud_proyecto.get_suma_manuales_proyecto(db, proyecto_id=proyecto.id)
+    suma_facturas_electronicas = await crud_proyecto.get_suma_electronicas_proyecto(db, proyecto_id=proyecto.id)
+    count_manuales=await crud_proyecto.get_count_facturas_manuales(db, proyecto_id=proyecto.id)
+    count_electronicas=await crud_proyecto.get_count_facturas_electronicas(db, proyecto_id=proyecto.id)
+    resumen_batches = await crud_proyecto.get_resumen_batches_por_proyecto(db, proyecto_id=proyecto.id)
+    resumen_categorias = await crud_proyecto.get_resumen_categoria_por_proyecto(db, proyecto_id=proyecto.id)
+    resumen_empresas= await crud_proyecto.get_resumen_empresa_por_proyecto(db, proyecto_id=proyecto.id)
+    proyecto_data = schemas.Proyecto.model_validate(proyecto).model_dump()
+
+    proyecto_data['suma_total'] = suma_total
+    proyecto_data['cantidad_facturas_manuales'] = count_manuales
+    proyecto_data['cantidad_facturas_electronicas'] = count_electronicas
+    proyecto_data['suma_facturas_manuales'] = suma_facturas_manuales
+    proyecto_data['suma_facturas_electronicas'] = suma_facturas_electronicas
+    proyecto_data['batches'] = resumen_batches # Sobrescribe la lista de batches simple
+    proyecto_data['categorias']=resumen_categorias
+    proyecto_data['empresas']=resumen_empresas
+    proyecto_data['porcentajeGanado'] = suma_total * 0.03
+
+
+    proyecto_info = schemas.ProyectoInfo(**proyecto_data)
+        
+
+
+
+    return proyecto_info
 
 @router.get("/{proyecto_id}", response_model=schemas.Proyecto)
 async def leer_proyecto(
@@ -168,9 +292,24 @@ async def buscadorFacturas(
         db, filtros=filtros, user_id=current_user.id
     )
 
-    print (resultado["items"])
     return resultado
-    raise HTTPException(status_code=400,detail="sisi")
+    # raise HTTPException(status_code=400,detail="sisi")
+
+
+@router.get("/facturas/paginated/admin",response_model=schemas.PaginatedFacturasResponse, tags=["Proyectos facturas"])
+async def buscadorFacturas(
+    db: AsyncSession = Depends(get_db)
+    ,filtros: schemas.FiltrosFactura = Depends(),
+     current_user: models.User = Depends(auth.get_current_active_user)
+):
+    """
+        busca facturas
+        """
+    resultado = await crud_proyecto.buscar_facturas_unificadas(
+        db, filtros=filtros
+    )
+
+    return resultado
 
 @router.get("/{proyecto_id}/check_facturas")
 async def hacerCheckfacturas(

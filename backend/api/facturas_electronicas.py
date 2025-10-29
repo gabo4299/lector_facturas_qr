@@ -10,6 +10,7 @@ from backend.schemas import schemas
 from backend.db import models
 from backend.db.database import engine, AsyncSessionLocal
 from backend.api import auth
+from backend.config import BACKEND_DIR
 router = APIRouter()
 
 async def get_db():
@@ -214,9 +215,9 @@ async def actualizar_factura_electronica(factura_id: int,
     
     
     if factura.save_pdf != None:
-        print("existe savepdf \n\n\n\n\n\n\n\n ")
-        print("factura inicial ",db_factura_inicial.save_pdf)
-        print("factura en curso ",factura.save_pdf)
+        
+        # print("factura inicial ",db_factura_inicial.save_pdf)
+        # print("factura en curso ",factura.save_pdf)
         if db_factura_inicial.save_pdf != factura.save_pdf and factura.save_pdf== True: 
                 print("iniciando facturaaaa scraping")
                 # db_factura = await crud_facturas_electronicas.update_factura_electroncia(db, factura_id=factura_id, factura_update=factura)
@@ -230,7 +231,7 @@ async def actualizar_factura_electronica(factura_id: int,
                 savePdf=factura.save_pdf
             )
         else:
-            print("no se cumplio cond ")
+            # print("no se cumplio cond ")
             # db_factura = await crud_facturas_electronicas.update_factura_electroncia(db, factura_id=factura_id, factura_update=factura)
             db_factura=await crud_facturas_electronicas.update_rute_factura_electronica(db=db,factura_id=factura_id)
     # else:
@@ -281,7 +282,7 @@ async def check_factura_electronica(factura_id: int,
 
                 return JSONResponse(content=contenido_serializable)
     #  te falta poner en ele service proyect_id=factura_inicial.proyecto_id,
-        db_fact= await factura_service.tarea_de_scraping_y_actualizacion(factura_id,db_factura.url,db_factura.save_pdf)
+        db_fact= await factura_service.tarea_de_scraping_y_actualizacion(factura_id=factura_id,proyect_id=db_factura.proyecto_id,url=db_factura.url,savePdf=db_factura.save_pdf)
         return db_fact
     else:
         contenido_serializable = {
@@ -310,7 +311,7 @@ async def checkforced_factura_electronica(factura_id: int,
 
 
 
-@router.get("/electronicas/download/{factura_id}",response_model=schemas.FacturaElectronica , tags=["Facturas electronicas"])
+@router.get("/electronicas/download/{factura_id}",response_class=FileResponse , tags=["Facturas electronicas"])
 async def download_factura(factura_id: int,
                             db:AsyncSession=Depends(get_db),
                             proyecto_validado: models.Proyecto = Depends(verificar_permiso_en_factura(allowed_roles=["dueño", "editor"]))):
@@ -321,12 +322,17 @@ async def download_factura(factura_id: int,
     if not db_factura.pdfIO:
         raise HTTPException(status_code=404, detail="Esta factura no tiene un PDF asociado.")
     try:
-        ruta_archivo = Path(db_factura.pdfIO)
+        ruta_absoluta_en_servidor = BACKEND_DIR / db_factura.pdfIO
+        # ruta_archivo = Path(db_factura.pdfIO)
+        ruta_archivo=ruta_absoluta_en_servidor
         if not ruta_archivo.is_file():
             raise HTTPException(status_code=404, detail="El archivo PDF no existe en el servidor.")
 
     # 4. Devolvemos la respuesta del archivo
-        nombre_descarga = f"factura_{db_factura.n_factura or db_factura.id}.pdf"
+        nombre_empresa=db_factura.empresa.nombre
+        nombre_empresa=nombre_empresa.replace(" ", "-")
+        nombre_descarga = f"factura-{db_factura.n_factura or db_factura.id}-{nombre_empresa}.pdf"
+        # print("nombre de descarga",nombre_descarga)
         return FileResponse(
             path=ruta_archivo, 
             media_type='application/pdf', 

@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import {  deleteCompany, getCompaniesPagination } from '../api/companyService';
 import type { Company } from '../types';
-
 import { ReusableTable } from '../components/ui/ReusableTable';
 import { Pagination } from '../components/ui/Pagination';
 import { EditCompanyModal } from '../components/modals/EditCompanyModal';

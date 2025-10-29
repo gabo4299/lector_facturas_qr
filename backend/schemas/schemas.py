@@ -73,7 +73,27 @@ class BatchResumen(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
+class CategoriaResumen(BaseModel):
+    # Usamos el schema 'Batch' existente para mostrar los datos del batch
+    categoria_info: Categoria
+    monto_total_categoria: float = 0.0
+    cantidad_manuales:Optional[int] =0
+    cantidad_electronicas:Optional[int] =0
+
+    class Config:
+        from_attributes = True
+
+class EmpresaResumen(BaseModel):
+    # Usamos el schema 'Batch' existente para mostrar los datos del batch
+    empresa_info: Empresa
+    monto_total_empresa: float = 0.0
+    cantidad_manuales:Optional[int] =0
+    cantidad_electronicas:Optional[int] =0
+
+    class Config:
+        from_attributes = True
+
 class UserBase(BaseModel):
     email: EmailStr
     name:Optional[str]=None
@@ -92,6 +112,12 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+class UserPaginada(BaseModel):
+    items: list[User]
+    total: int
+    page: int
+    size: int
+    pages: int
 class MiembroSchema(BaseModel):
     rol: str
     usuario: User # Anidamos el schema de User completo
@@ -122,7 +148,19 @@ class Proyecto(ProyectoBase):
     batches: List[Batch] = [] # Lista de batches
     class Config: from_attributes = True
 
+class ProyectoAdminInfo(Proyecto):
+    """
+    Hereda de Proyecto y añade campos calculados para vistas de administrador.
+    """
+    total_facturas: int = 0
+    suma_total_facturas: float = 0.0
 
+class PaginatedProyectosAdminResponse(BaseModel):
+    items: List[ProyectoAdminInfo]
+    total: int
+    page: int
+    size: int
+    pages: int
 class ProyectoInfo(Proyecto):
     suma_total:Optional[float] = None
     cantidad_facturas_electronicas:Optional[int] = None
@@ -131,6 +169,8 @@ class ProyectoInfo(Proyecto):
     suma_facturas_manuales:Optional[float] = None
     porcentajeGanado:Optional[float] = None
     batches: List[BatchResumen] = []
+    empresas:Optional [List[EmpresaResumen]]=[]
+    categorias:Optional [List[CategoriaResumen]]=[]
 
 class Token(BaseModel):
     access_token: str
@@ -290,10 +330,12 @@ class FiltrosFactura(BaseModel):
     monto_max: Optional[float] = None
     categoria_id: Optional[int] = None
     empresa_id: Optional[int] = None
+    batch_id: Optional[int] = None
     
     # Filtros específicos de FacturaElectronica
     complete: Optional[bool] = None
     factura_especial: Optional[bool] = None
+    factura_virtual: Optional[bool] = None
         # Parámetros de Paginación
     page: int = 1
     size: int = 20
@@ -311,6 +353,13 @@ FacturaUnion = Union[FacturaManual, FacturaElectronica]
 class PaginatedFacturasResponse(BaseModel):
     total: int
     items: List[Annotated[FacturaUnion, Field(discriminator='tipo')]]
+    page:Optional [int]
+    size: Optional[int]
+    total_pages: Optional[int]
+
+    
+class GoogleLoginRequest(BaseModel):
+    code: str
     
 Proyecto.model_rebuild()
 User.model_rebuild()

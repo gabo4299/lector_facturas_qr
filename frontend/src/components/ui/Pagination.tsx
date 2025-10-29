@@ -31,6 +31,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange,limit,onLimit
           
         </select>
         <span>resultados</span>
+         {(limit >= totalItems )?  <span> {totalItems} de {totalItems} </span>:<span> {limit} de {totalItems}</span>}
       </div>
       
       {/* Controles de Paginación */}

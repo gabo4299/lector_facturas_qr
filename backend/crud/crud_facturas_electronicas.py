@@ -87,7 +87,7 @@ async def create_factura_electronica_inicial(db: AsyncSession, factura: FacturaE
     db.add(db_factura)
     await db.commit()
     await db.refresh(db_factura)
-    print("\n \n \n \n  se creoo la factura en dvb s \n \n \n \n")
+    print(f"Factura inicial creada para url {factura.url}")
     return await get_factura_electronica(db, factura_id=db_factura.id)
 
 
@@ -113,7 +113,8 @@ async def update_rute_factura_electronica(db: AsyncSession, factura_id: int,
     db_factura = await get_factura_electronica(db, factura_id=factura_id)
     if not db_factura :
         return None 
-
+    if ruta == None:
+        db_factura.save_pdf=False
     db_factura.pdfIO=ruta   
     await db.commit() # Confirma los cambios en la base de datos
     await db.refresh(db_factura) # Refresca la instancia con los nuevos datos de la DB
@@ -201,17 +202,23 @@ async def get_facturas_incompletas(db: AsyncSession,proyect_id:int,filtro_catego
     result = await db.execute(query)
     return result.unique().scalars().all()
 
-async def set_error_Factura_Electronica(db:AsyncSession,facturaModel:FacturaElectronica,msg:str="error",tipo_error:int=1,categoria_name:str="Invalidas",categoria_desc:str="Facturas Invalidas"):
+
+async def set_error_Factura_Electronica(db:AsyncSession,facturaModel:FacturaElectronica,msg:str="error",tipo_error:int=1,categoria_name:str="Invalidas",categoria_desc:str="Facturas Invalidas",empresa_id:int=None):
     
     if tipo_error ==1 :
         new_msg="ERROR_CRITICO: "+msg   
     else:
         new_msg=msg   
     
+    if empresa_id :
+        empresa= await crud_empresa.get_empresa(db=db,empresa_id=empresa_id)
+
     categoria=await crud_categoria.get_or_create_categoria(db=db,name=categoria_name,description=categoria_desc)
     update_data=schemas.FacturaElectronicaCreate(url=facturaModel.url,proyecto_id=facturaModel.proyecto_id,
                                                  categoria_id=categoria.id,fecha=facturaModel.fecha,status=new_msg,monto_total=0.0,monto_fiscal=0.0).model_dump()
     update_data.pop("nit_emisor")
+    if empresa:
+        update_data["empresa_id"]=empresa.id
     for key, value in update_data.items():
         # print("los valores a actulizar \n",key , value)
         setattr(facturaModel, key, value)
@@ -231,6 +238,18 @@ async def get_facturas_electronicas_por_proyecto(db: AsyncSession, proyecto_id: 
     
     result = await db.execute(query)
     return result.unique().scalars().all()
+
+
+async def get_facturas_virtuales_electronicas_por_proyecto(db: AsyncSession, proyecto_id: int) -> List[FacturaElectronica]:
+    """Obtiene todas las facturas electrónicas de un proyecto, con sus relaciones."""
+    query = select(FacturaElectronica).options(
+        joinedload(FacturaElectronica.categoria),
+        joinedload(FacturaElectronica.batch),
+        joinedload(FacturaElectronica.empresa)
+    ).filter(FacturaElectronica.proyecto_id == proyecto_id,FacturaElectronica.save_pdf==True)
+    
+    result = await db.execute(query)
+    return result.unique().scalars().all()
 async def update_factura_desde_scraping(db: AsyncSession, factura_id: int, datos_completos: schemas.FacturaElectronicaCreateScrapping):
     """Actualiza una factura con los datos obtenidos del scraping."""
 
@@ -238,29 +257,10 @@ async def update_factura_desde_scraping(db: AsyncSession, factura_id: int, datos
     proyecto = await crud_proyecto.get_proyecto(db, proyecto_id=db_factura.proyecto_id)
     if not db_factura:
         return None
-
-
     update_data = datos_completos.model_dump(exclude_unset=True)
-    if update_data["complete"] == True:
-        if update_data["Nit_Beneficiario"] != proyecto.nit_beneficiario:
-            print("error de NITS")
-            return await set_error_Factura_Electronica(db,db_factura,msg=f"nit beneficiario ({update_data['Nit_Beneficiario'] }) diferente a nit de proyecto {proyecto.nit_beneficiario} se recomienda eliminar")
-        if update_data["fecha"] != None:
-            
-            if not (proyecto.fecha_inicio <= parse_fecha(update_data["fecha"].isoformat()) <= proyecto.fecha_fin):
-                msg=f"La fecha de la factura ({update_data['fecha'].date()}) está fuera del rango del proyecto ({proyecto.fecha_inicio.date()} al {proyecto.fecha_fin.date()} se recomienda eliminar)."
-                return await set_error_Factura_Electronica(db,db_factura,msg)
-            
-        else:
-            print("error de fecha no hay ")
-            return await set_error_Factura_Electronica(db,db_factura,msg=f"ERROR: No se introdujo fecha")
-
     nit_empresa = update_data.pop("nit_emisor", None)
     nombre_empresa = update_data.pop("empresa", None)
     
-    for key, value in update_data.items():
-        # print("los valores a actulizar \n",key , value)
-        setattr(db_factura, key, value)
     if nit_empresa:
         rub=None
         try:
@@ -277,6 +277,30 @@ async def update_factura_desde_scraping(db: AsyncSession, factura_id: int, datos
             db_factura.factura_especial=True
         if  db_factura.factura_especial==True:
             db_factura.monto_total =  db_factura.monto_total*0.70
+
+    
+    if update_data["complete"] == True:
+        if update_data["Nit_Beneficiario"] != proyecto.nit_beneficiario:
+            print("error de NITS")
+            return await set_error_Factura_Electronica(db,db_factura,
+                                                       empresa_id=empresa_obj.id,
+                                                       msg=f"nit beneficiario ({update_data['Nit_Beneficiario'] }) diferente a nit de proyecto {proyecto.nit_beneficiario} se recomienda eliminar")
+        if update_data["fecha"] != None:
+            
+            if not (proyecto.fecha_inicio <= parse_fecha(update_data["fecha"].isoformat()) <= proyecto.fecha_fin):
+                msg=f"La fecha de la factura ({update_data['fecha'].date()}) está fuera del rango del proyecto ({proyecto.fecha_inicio.date()} al {proyecto.fecha_fin.date()} se recomienda eliminar)."
+                return await set_error_Factura_Electronica(db,db_factura,msg,empresa_id=empresa_obj.id,)
+            
+        else:
+            print("error de fecha no hay ")
+            return await set_error_Factura_Electronica(db,db_factura,msg=f"ERROR: No se introdujo fecha",empresa_id=empresa_obj.id,)
+
+    
+    
+    for key, value in update_data.items():
+        # print("los valores a actulizar \n",key , value)
+        setattr(db_factura, key, value)
+    
     # print("factura nueva \n\n\n\n",db_factura)
     await db.commit()
     await db.refresh(db_factura) # Refresca la instancia con los nuevos datos de la DB

@@ -7,7 +7,7 @@ from backend.crud import crud_facturas_electronicas
 from backend.db.database import AsyncSessionLocal
 import asyncio
 from io import BytesIO
-from backend.config import FACTURAS_DIR
+from backend.config import FACTURAS_DIR,BACKEND_DIR
 class FacturaValidationError(Exception):
     """Clase base para errores de este scraper."""
     pass
@@ -56,15 +56,13 @@ async def procesar_factura_completa_desde_url(url: str,
         
         
         
-
+        
         datos_factura.update({
-            # "Nit_Beneficiario": pdf_processor.get_nit_beneficiario(),
-            # "fecha": pdf_processor.get_datetime(),
+
             "detalles": pdf_processor.get_detalle(),
             "monto_fiscal": pdf_processor.get_monto_fiscal(),
             "factura_especial": pdf_processor.facturaEspecial,
-            "pdfIO":str(pdfRuta)if save_pdf else None
-
+            "pdfIO":str((pdfRuta.relative_to(BACKEND_DIR)).as_posix())if save_pdf else None
         })
         
         

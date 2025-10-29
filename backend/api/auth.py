@@ -1,6 +1,11 @@
 # backend/api/auth.py
+import asyncio
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import google_auth_oauthlib
+from google.oauth2.id_token import verify_oauth2_token
+from google.auth.transport.requests import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError,jwt
 
@@ -10,6 +15,9 @@ from backend.schemas import schemas
 from backend import auth
 from backend.db import models
 from backend.db.database import engine, AsyncSessionLocal
+
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 router = APIRouter()
 
@@ -41,7 +49,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        print("el token es ",token)
         payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
@@ -67,3 +74,58 @@ async def get_current_superuser(current_user: models.User = Depends(get_current_
             detail="Se requieren permisos de administrador para esta acción."
         )
     return current_user
+
+
+@router.post("/google", response_model=schemas.Token)
+async def login_with_google(
+    request: schemas.GoogleLoginRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Recibe el código de autorización de Google, lo verifica,
+    obtiene/crea el usuario y devuelve un token JWT de nuestra aplicación.
+    """
+    try:
+        # 1. Intercambia el código de autorización por un token de ID
+        flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+            'client_secret.json', # Debes crear este archivo JSON con tus credenciales
+            scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
+        )
+        # flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+        
+        
+        # Esta llamada es síncrona, la ejecutamos en un hilo para no bloquear
+        flow.redirect_uri = 'postmessage'
+        # print(f"llegando el codigo {request.code}")
+        await asyncio.to_thread(
+            flow.fetch_token,
+            code=request.code
+        )
+        credentials = flow.credentials
+        # print(f"credentials {credentials}")
+        id_info = verify_oauth2_token(
+            credentials.id_token, Request(), os.getenv("GOOGLE_CLIENT_ID")
+        )
+        
+
+        # El email es la pieza clave
+        user_email = id_info.get("email")
+        # print(f"user :{id_info}")
+        if not user_email:
+            raise HTTPException(status_code=400, detail="No se pudo obtener el email de Google.")
+
+        # 3. Busca o crea el usuario en tu propia base de datos
+        user = await crud_users.get_or_create_user_by_google(db, google_user_info=id_info)
+
+        # 4. Crea un token JWT para TU aplicación
+        access_token = auth.create_access_token(data={"sub": user.email,"fullName":user.name,"is_su":user.is_superuser})
+        
+        # 5. Devuelve TU token JWT, no el de Google
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except Exception as e:
+        print(f"No se pudo validar con Google: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se pudo validar con Google: {e}"
+        )

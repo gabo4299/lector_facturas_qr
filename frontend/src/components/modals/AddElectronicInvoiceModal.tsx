@@ -1,10 +1,10 @@
 // src/components/forms/AddElectronicInvoiceModal.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect} from 'react';
 import type { FormEvent } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 import { getBatchesForProject, getCategoriesForProject } from '../../api/projectService';
 import { createElectronicInvoice } from '../../api/invoiceService';
 import beepSoundURL from '../../assets/beep.mp3';
+import QrInputModal from '../../features/QrReader/QrInputModal';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,13 +24,12 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
   const [scannedUrl, setScannedUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [showManualInput, setShowManualInput] = useState(false); // 👈 1. Estado para mostrar/ocultar el input
+  
 
   const [batches, setBatches] = useState<BatchOrCategory[]>([]);
   const [categories, setCategories] = useState<BatchOrCategory[]>([]);
   
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  
 
   // Carga lotes y categorías cuando se abre el modal
   useEffect(() => {
@@ -42,47 +41,20 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
       fetchData();
       
       // Inicia el escáner de cámara
-      startCameraScanner();
-    } else {
-      stopCameraScanner(); // Asegúrate de detener la cámara al cerrar
+      // startCameraScanner();
     }
-
-    // Función de limpieza para detener la cámara si el componente se desmonta
-    return () => {
-      stopCameraScanner();
-    };
   }, [isOpen, projectId]);
 
 
-    const handleManualUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setScannedUrl(e.target.value);
-    if (e.target.value) {
-      stopCameraScanner(); // Detiene la cámara si el usuario empieza a escribir
-    }
-  };
-  
-  const startCameraScanner = () => {
-    if (scannerRef.current) return;
-    const qrCodeScanner = new Html5Qrcode("qr-reader");
-    scannerRef.current = qrCodeScanner;
 
+  
     const qrCodeSuccessCallback = (decodedText: string) => {
       playScanSound();
       setScannedUrl(decodedText);
       setErrorMessage('');
-      stopCameraScanner();
+      
     };
 
-    qrCodeScanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      qrCodeSuccessCallback,
-      undefined // qrCodeErrorCallback (opcional)
-    ).catch(err => {
-      setErrorMessage("No se pudo iniciar la cámara. Asegúrate de dar permisos.");
-      console.error("Error al iniciar la cámara:", err);
-    });
-  };
 
    const playScanSound = () => {
     // URL de un sonido de notificación simple y gratuito. Puedes cambiarla por cualquier .mp3
@@ -90,29 +62,9 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
     const audio = new Audio(beepSoundURL);
     audio.play();
   };
-  const stopCameraScanner = () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      scannerRef.current.stop().catch(err => console.error("Error al detener el escáner:", err));
-    }
-    scannerRef.current = null;
-  };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      const file = event.target.files[0];
-      const qrCodeScanner = new Html5Qrcode("qr-reader"); // Usamos un escaner temporal
-      try {
-        const decodedText = await qrCodeScanner.scanFile(file, false);
-        setScannedUrl(decodedText);
-        setErrorMessage('');
-        stopCameraScanner(); // Detiene la cámara si estaba activa
-      } catch (err) {
-        setErrorMessage("No se pudo encontrar un código QR en la imagen.");
-        console.error("Error al escanear archivo:", err);
-      }
-    }
-  };
 
+  
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!scannedUrl) {
@@ -125,7 +77,7 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
         url: scannedUrl,
         save_pdf: savePdf,
         batch_id: selectedBatch,
-        category_id: selectedCategory
+        categoria_id: selectedCategory
       });
       onInvoiceCreated();
       onClose();
@@ -145,19 +97,12 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
         <div className="mb-4 p-4 border rounded-md text-center bg-gray-50">
           {!scannedUrl ? (
             <>
-              <div id="qr-reader" className="w-full"></div>
-              <p className="text-sm text-gray-500 my-2">o</p>
-              <button 
-                type="button" 
-                onClick={() => fileInputRef.current?.click()} 
-                className="px-4 py-2 font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100 text-sm"
-              >
-                Subir Foto de QR
-              </button>
-               <button type="button" onClick={() => setShowManualInput(true)} className="text-sm text-blue-600 hover:underline">
-                  Ingresar URL manualmente
-                </button>
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+             <QrInputModal
+             isOpen={isOpen}
+             onQrDetected={qrCodeSuccessCallback}
+             onClose={()=>console.log("cerrando")}
+             />
+
             </>
           ) : (
             <div className="p-4 text-center">
@@ -167,23 +112,7 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
             </div>
           )}
 
-          {showManualInput && !scannedUrl && (
-            <div>
-              <label htmlFor="manual_url" className="block text-sm font-medium text-gray-700 mb-1">
-                Pega la URL del QR aquí
-              </label>
-              <input 
-                id="manual_url"
-                type="url"
-                placeholder="https://siat.impuestos.gob.bo/..."
-                onChange={handleManualUrlChange}
-                className="w-full px-3 py-2 border rounded-md shadow-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button type="button" onClick={() => setShowManualInput(false)} className="text-sm text-blue-600 hover:underline mt-2">
-                Volver al escáner
-              </button>
-            </div>
-          )}
+          
         </div>
 
         <form onSubmit={handleSubmit}>

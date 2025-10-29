@@ -2,14 +2,15 @@
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { updateElectronicInvoice, updateManualInvoice } from '../../api/invoiceService';
-import type { UnifiedInvoice, Batch, Category } from '../../pages/ProjectDetailPage';
+import type { UnifiedInvoice, Batch } from '../../pages/ProjectDetailPage';
 import { getCategoriesForProject } from '../../api/projectService';
+import type { Category } from '../../types';
 
 interface EditModalProps {
   isOpen: boolean;
   onClose: () => void;
   invoice: UnifiedInvoice | null;
-  batches: Batch[];
+  batches?: Batch[];
   onInvoiceUpdated: () => void;
 }
 
@@ -109,7 +110,7 @@ export const EditInvoiceModal = ({ isOpen, onClose, invoice, batches, onInvoiceU
             <label htmlFor="batch" className="block text-sm font-medium text-gray-700">Lote</label>
             <select id="batch" value={selectedBatchId || ''} onChange={e => setSelectedBatchId(e.target.value ? Number(e.target.value) : null)} className="w-full mt-1 px-3 py-2 border rounded-md shadow-sm border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">Sin Lote</option>
-              {batches.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              {batches?.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
           </div>
           <div>

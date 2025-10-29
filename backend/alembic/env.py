@@ -1,5 +1,6 @@
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
@@ -9,8 +10,9 @@ from alembic import context
 import os
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+load_dotenv(os.path.join(project_root, '.env'))
 # (Opcional, pero recomendado si usas .env)
 # from dotenv import load_dotenv
 # load_dotenv()
@@ -24,6 +26,13 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
+
+db_url = os.getenv("SYNC_DATABASE") # O el nombre que uses en tu .env, ej. SYNC_DATABASE
+if not db_url:
+    raise ValueError("La variable de entorno para la base de datos de Alembic no está configurada.")
+
+# 4. Establece la URL de la base de datos en la configuración de Alembic
+config.set_main_option('sqlalchemy.url', db_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 

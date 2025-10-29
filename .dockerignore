@@ -1,0 +1,31 @@
+# Entornos virtuales
+venv/
+backend/venv/
+backend/.venv/
+backend/env/
+.venv/
+env/
+*.venv
+
+# Archivos de Python compilados y cachés
+__pycache__/
+backend/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos de configuración de IDEs
+.vscode/
+.idea/
+
+# Archivos de Git
+.git
+.gitignore
+
+# Archivos de secretos (doble seguridad)
+.env
+client_secret.json
+
+
+*.sql
+*.dump
