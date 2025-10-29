@@ -9,14 +9,14 @@ services:
       - .env
     # Mapea el puerto 8000 de tu PC al puerto 8000 del contenedor
     ports:
-      - "80:80"
+      - "8000:8000"
     # Añade esto para que Docker pueda encontrar el host de tu máquina
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Mapea la carpeta local './certs' a la carpeta '/app/certs' dentro del contenedor
-      # - ./certs:/app/certs
+      - ./certs:/app/certs
       # Monta el archivo local en la ruta /app/client_secret.json del contenedor
       - ./client_secret.json:/app/client_secret.json
       # Monta la carpeta de datos LOCAL (que está dentro de backend) a /app/data
-      # - ./backend/data:/app/backend/data
+      - ./backend/data:/app/backend/data

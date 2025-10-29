@@ -1,0 +1,11 @@
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# Redirección para apps SPA (React, Vue, etc.)
+# Esto evita errores 404 al refrescar o usar rutas internas.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
