@@ -51,6 +51,25 @@ export interface ProjectInfo {
   // ... y cualquier otro campo que necesites
 }
 
+
+export interface ProjectInfoDetail {
+  id: number;
+  nombre: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  nit_beneficiario: string;
+  suma_total: number;
+  cantidad_facturas_electronicas: number;
+  cantidad_facturas_manuales: number;
+  porcentajeGanado:number;
+  suma_facturas_electronicas?:number
+  suma_facturas_manuales?:number
+  batches:BatchResume[];
+  
+  asociaciones_usuario?:[asociacionProyecto]
+  propietario?:UserProject
+  // ... y cualquier otro campo que necesites
+}
 export interface ProjectAdmin {
   id: number;
   nombre: string;

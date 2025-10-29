@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { deleteProject } from '../api/projectService';
-import type { ProjectInfo } from '../types'; // Asumiendo que el tipo está en DashboardPage o en un archivo global
+import type { ProjectInfoDetail } from '../types'; // Asumiendo que el tipo está en DashboardPage o en un archivo global
 import { useNavigate } from 'react-router-dom';
 import { AddMemberModal } from './modals/AddMemberModal';
 import { EditProjectModal } from '../components/modals/editProjectModal';
 interface ProjectCardProps {
-  project: ProjectInfo; // Recibe el objeto completo del proyecto
+  project: ProjectInfoDetail; // Recibe el objeto completo del proyecto
   onProjectDeleted: (id: string) => void;
   onAddManualInvoice: () => void; // Nueva prop
   onAddBatchInvoice: () => void;  // Nueva prop
@@ -216,10 +216,10 @@ const getGridColsClass = () => {
                      <p className="text-xs text-gray-500">
                         {i.batch_info.nombre}</p>
                     <p className="text-lg font-semibold text-gray-500">
-                        Bs. {i.monto_total_batch.toLocaleString('es-BO')}</p>
+                        Bs. {i.monto_total_batch?.toLocaleString('es-BO')}</p>
                 </div>
             <p className="text-xs font-semibold text-green-600">
-               Ganancia: Bs {(i.monto_total_batch*0.03).toLocaleString('es-BO')}</p>
+               Ganancia: Bs {((i.monto_total_batch!)*0.03).toLocaleString('es-BO')}</p>
             <p className="text-xs text-gray-500">
                Electronicas: {i.cantidad_electronicas}</p>
             

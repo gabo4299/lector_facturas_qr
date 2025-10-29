@@ -11,7 +11,7 @@ import { CompaniesPage } from '../pages/CompaniesPage';
 // import QrInputModal from '../features/QrReader/QrInputModal';
 import { AdminPanelPage } from '../pages/admin/AdminPanelPage';
 import { useAuth } from '../hooks/useAuth';
-import { QrScanner2 } from '../features/QrScanner2';
+// import { QrScanner2 } from '../features/QrScanner2';
 // Aún no hemos creado estas páginas, pero ya definimos las rutas
 // import LoginPage from '../pages/LoginPage';
 // import DashboardPage from '../pages/DashboardPage';
@@ -66,9 +66,10 @@ export const AppRouter = () => {
          <Route path='/qr_test' element={
                      <div className="App">
                           <h1>Escáner de Códigos QR</h1>
-                           <QrScanner2
+                           {/* <QrScanner2
                            onScanSuccess={(e)=>console.log(e)}
-                           onScanError={(e)=>console.error(e)}/>
+                           onScanError={(e)=>console.error(e)}/> */}
+                           hola
                         </div>
                 }/>
         <Route path="*" element={<PlaceholderPage title="404 - Not Found" />} />

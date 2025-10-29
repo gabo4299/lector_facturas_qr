@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { getProjectsByUser } from '../api/projectService';
 import { ProjectDetailCard } from '../components/ProjectDetailCard';
-import type { ProjectInfo } from '../types';
+import type { ProjectInfoDetail } from '../types';
 import { AddManualInvoiceModal } from '../components/modals/AddManualInvoiceModal';
 import { AddBatchInvoicesModal } from '../components/modals/AddBatchInvoicesModal';
 import { AddProjectModal } from '../components/modals/AddProjectModal';
@@ -13,7 +13,7 @@ import { TableCategories } from '../components/tables/TableCategories';
 
 
 export const DashboardPage = () => {
-  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [projects, setProjects] = useState<ProjectInfoDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

@@ -1,6 +1,6 @@
 // src/components/projects/ProjectStatsBreakdown.tsx
 import { useState, useMemo, useEffect } from 'react';
-import { SearchableSelect } from '../ui/searchableSelect'; // Reutilizamos el selector con búsqueda
+import { SearchableSelect } from '../ui/SearchableSelect'; // Reutilizamos el selector con búsqueda
 import type { ProjectResume, CompanyResume, BatchResume, CategoryResume, Company, Batch, Category } from '../../types'; // Importa tus tipos
 
 interface ProjectStatsBreakdownProps {
@@ -15,9 +15,9 @@ export const ProjectStatsBreakdown = ({ project }: ProjectStatsBreakdownProps) =
 
   // Calcula la empresa, lote y categoría con mayor gasto usando useMemo para eficiencia
   const topSpenders = useMemo(() => {
-    const topCompany = [...(project.empresas || [])].sort((a, b) => b.monto_total_empresa - a.monto_total_empresa)[0] || null;
-    const topBatch = [...(project.batches || [])].sort((a, b) => b.monto_total_batch - a.monto_total_batch)[0] || null;
-    const topCategory = [...(project.categorias || [])].sort((a, b) => b.monto_total_categoria - a.monto_total_categoria)[0] || null;
+    const topCompany = [...(project.empresas || [])].sort((a, b) => b.monto_total_empresa! - a.monto_total_empresa!)[0] || null;
+    const topBatch = [...(project.batches || [])].sort((a, b) => b.monto_total_batch! - a.monto_total_batch!)[0] || null;
+    const topCategory = [...(project.categorias || [])].sort((a, b) => b.monto_total_categoria! - a.monto_total_categoria!)[0] || null;
     return { topCompany, topBatch, topCategory };
   }, [project]);
 
