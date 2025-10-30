@@ -39,3 +39,38 @@ CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade head && uvicorn backend
 
 
 
+https://siatrest.impuestos.gob.bo/sre-sfe-shared-v2-rest/consulta/factura
+{
+"cuf":"15F489E0D6750AAA8211EC26FF7AA7CA40D92202E7927ABFE56971F74",
+"nitEmisor":320876029,
+"numeroFactura": 43163
+}
+
+
+
+
+https://siatrest.impuestos.gob.bo/sre-sfe-shared-v2-rest/consulta/representacionGrafica
+{
+"cuf":"15F489E0D6750AAA8211EC26FF7AA7CA40D92202E7927ABFE56971F74",
+"nit":320876029,
+"numeroFactura": 43163,
+"tamanio":1
+}
+
+del kingdom 
+http://facturas.chickenskingdom.com.bo/Facturas/371197014/CI371197014/450F532F4E8B7FE6372FDE2967D9BF765B495C192179EFD791B332F74/21
+
+su siat del kingdom 
+https://siat.impuestos.gob.bo/consulta/QR?nit=1009311029&cuf=450F532F4E8B7FE6372FDE2967D9BF765B495C192179EFD791B332F74&numero=14533&t=1
+
+
+de gasolinera
+https://siat.impuestos.gob.bo/consulta/QR?nit=821600013&cuf=383755E0B2C454E1E60ECB9CB58447B1B3F805542455683B732432F74&numero=23101&t=12
+
+
+"actividadEconomica":"4730110"
+
+473011
+
+
+cod prod sin 99836
