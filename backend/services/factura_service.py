@@ -2,7 +2,6 @@ import base64
 import datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from .NewSiatdescargaPDF import downloadFactura
 from .processPDF import ProcesadorPDF_Rollo
 # from FacturaOb import FacturaElectronica
 from backend.schemas import DetalleItem,FacturaElectronicaCreate,FacturaElectronicaCreateScrapping

@@ -7,7 +7,7 @@ import { Pagination } from '../../components/ui/Pagination'; // Asegúrate de te
 import { getCategories } from '../../api/categoryService';
 import { EditInvoiceModal } from '../../components/modals/EditInvoiceModal';
 
-import type { BatchResume, Category, CategoryResume, Company, CompanyResume, ElectronicInvoiceAPI, ManualInvoiceAPI, ProjectAdmin, ProjectInfo } from '../../types';
+import type { BatchResume, Category, CategoryResume, Company, CompanyResume, ElectronicInvoiceAPI, ManualInvoiceAPI, ProjectAdmin, ProjectInfo,Batch } from '../../types';
 import { useEffect, useState } from 'react';
 import EditIcon from '../../components/ui/icons/EditIcon';
 import DeleteIcon from '../../components/ui/icons/Deleteicon';
@@ -16,11 +16,7 @@ import DownloadIcon from '../../components/ui/icons/DownloadIcon';
 import { getCompanies } from '../../api/companyService';
 import { getProjectsall } from '../../api/projectService';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
-export interface Batch{
-    nombre:string;
-    descripcion:string;
-    id:number;
-}
+
 
 
 

@@ -26,5 +26,5 @@ ahora para restaurar esto es
 -d database
 
 pg_restore -h aws-1-sa-east-1.pooler.supabase.com -p 5432 -U postgres.fbjadpjrxqwbifehvcfa -d postgres --clean -v mi_backup_supa.dump
-
+pg_restore -d "postgresql://neondb_owner:TU_PASSWORD_REAL@ep-withered-dew-acevpymg.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require" tu_archivo_backup.dump
 

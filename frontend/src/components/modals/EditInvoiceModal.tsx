@@ -2,9 +2,10 @@
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { updateElectronicInvoice, updateManualInvoice } from '../../api/invoiceService';
-import type { UnifiedInvoice, Batch } from '../../pages/ProjectDetailPage';
+import type { UnifiedInvoice } from '../../pages/ProjectDetailPage';
+
 import { getCategoriesForProject } from '../../api/projectService';
-import type { Category } from '../../types';
+import type { Category,Batch } from '../../types';
 
 interface EditModalProps {
   isOpen: boolean;
