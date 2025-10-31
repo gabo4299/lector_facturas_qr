@@ -16,7 +16,6 @@ DATABASE_URL=os.getenv("ASYNC_DATABASE")
 # Crea el motor asíncrono
 engine = create_async_engine(DATABASE_URL,
                              connect_args={"statement_cache_size": 0,
-                                           "ssl": True,  # Esto es el equivalente a sslmode=require
                                           },
 
                             #  execution_options={"postgresql_prepare_threshold": 0,},

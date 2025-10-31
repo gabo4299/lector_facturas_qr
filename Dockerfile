@@ -40,4 +40,4 @@ EXPOSE 8000
 
 # 7. El comando que se ejecutará para iniciar tu app
 #    Primero corre las migraciones de Alembic y luego inicia Uvicorn.
-CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile certs/localhost+4-key.pem --ssl-certfile certs/localhost+4.pem"]
+CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 80"]
