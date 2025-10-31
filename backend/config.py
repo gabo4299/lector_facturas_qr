@@ -15,7 +15,7 @@ else:
     
     raise FileNotFoundError("No se pudo encontrar el directorio 'backend' subiendo desde la ubicación del script.")
 
-
+app_state={}
 BACKEND_DIR = backend_dir
 
 # 3. Construimos la ruta a la carpeta de destino a partir de la ruta de 'backend'

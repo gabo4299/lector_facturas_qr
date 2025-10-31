@@ -1,5 +1,5 @@
 # models.py
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, LargeBinary,ForeignKey,Table
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, LargeBinary,ForeignKey,Table, func
 from .database import Base
 from sqlalchemy.orm import relationship 
 from sqlalchemy.dialects.postgresql import JSONB
@@ -107,6 +107,11 @@ class FacturaManual(Base):
     batch = relationship("Batch", back_populates="facturas_manuales")
     categoria = relationship("Categoria", back_populates="facturas_manuales")
     proyecto = relationship("Proyecto", back_populates="facturas_manuales")
+    fecha_creacion = Column(
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        nullable=True
+    )
 
 class FacturaElectronica(Base):
     __tablename__ = "facturas_electronicas"
@@ -138,6 +143,11 @@ class FacturaElectronica(Base):
     empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=True)
     batch_id = Column(Integer, ForeignKey("batches.id"), nullable=True)
     empresa = relationship("Empresa", back_populates="facturas_electronicas")
+    fecha_creacion = Column(
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        nullable=True
+    )
 
 class Empresa(Base):
     __tablename__ = "empresas"

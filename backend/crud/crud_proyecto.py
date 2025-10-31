@@ -1,3 +1,4 @@
+import asyncio
 from collections import defaultdict
 from datetime import datetime, time
 import math
@@ -8,7 +9,7 @@ from backend.db import models
 from backend.schemas import  schemas 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-
+from backend.config import app_state
 from sqlalchemy.orm import selectinload ,joinedload 
 
 
@@ -247,6 +248,134 @@ async def update_proyecto(
     return await get_proyecto(db, proyecto_id=db_proyecto.id)
 
 
+async def get_proyecto_full_resume(db: AsyncSession, proyecto_id: int):
+    """
+    Obtiene toda la información de resumen de un proyecto de la forma más optimizada posible,
+    minimizando las consultas a la base de datos.
+    """
+    # --- 1. Obtener el objeto principal del proyecto y la ID de categoría inválida ---
+    cat_invalidas_id = app_state.get("invalidas_cat_id", -1)
+    
+    # En esta única consulta, obtenemos el proyecto Y sus relaciones directas
+    proyecto_obj = await get_proyecto(db, proyecto_id=proyecto_id)
+    if not proyecto_obj:
+        return None
+
+    # --- 2. Crear una vista unificada (CTE) de las facturas VÁLIDAS ---
+    q_manual = select(
+        models.FacturaManual.monto_total,
+        models.FacturaManual.monto_total.label("monto_fiscal"),
+        models.FacturaManual.batch_id,
+        models.FacturaManual.categoria_id, models.FacturaManual.empresa_id,
+        literal("manual").label("tipo")
+    ).filter(models.FacturaManual.proyecto_id == proyecto_id)
+
+    q_electronica = select(
+        models.FacturaElectronica.monto_total,
+        models.FacturaElectronica.monto_fiscal,
+        models.FacturaElectronica.batch_id,
+        models.FacturaElectronica.categoria_id, models.FacturaElectronica.empresa_id,
+        
+        literal("electronica").label("tipo")
+    ).filter(
+        models.FacturaElectronica.proyecto_id == proyecto_id,
+        # Excluimos las inválidas directamente aquí
+        or_(
+            models.FacturaElectronica.categoria_id != cat_invalidas_id,
+            models.FacturaElectronica.categoria_id == None
+        )
+    )
+
+    unified_invoices_cte = union_all(q_manual, q_electronica).cte()
+
+    # --- 3. Definir TODAS las consultas de agregación basadas en la CTE ---
+    total_stats_q = select(
+        func.sum(unified_invoices_cte.c.monto_total),
+        func.sum(unified_invoices_cte.c.monto_fiscal),
+        func.count().filter(unified_invoices_cte.c.tipo == 'manual'),
+        func.sum(unified_invoices_cte.c.monto_total).filter(unified_invoices_cte.c.tipo == 'manual'),
+        func.count().filter(unified_invoices_cte.c.tipo == 'electronica'),
+        func.sum(unified_invoices_cte.c.monto_total).filter(unified_invoices_cte.c.tipo == 'electronica')
+    )
+    batch_summary_q = (
+        select(
+            models.Batch.id,
+            models.Batch.nombre,
+            func.count(unified_invoices_cte.c.tipo), # Contamos cualquier columna no nula
+            func.sum(unified_invoices_cte.c.monto_total)
+        )
+        .join(unified_invoices_cte, models.Batch.id == unified_invoices_cte.c.batch_id, isouter=True)
+        .filter(models.Batch.proyecto_id == proyecto_id)
+        .group_by(models.Batch.id, models.Batch.nombre)
+    )
+    categoria_summary_q = (
+        select(
+            models.Categoria.id,
+            models.Categoria.nombre,
+            func.count(unified_invoices_cte.c.tipo),
+            func.sum(unified_invoices_cte.c.monto_total)
+        )
+        .join(unified_invoices_cte, models.Categoria.id == unified_invoices_cte.c.categoria_id)
+        .group_by(models.Categoria.id, models.Categoria.nombre)
+    )
+    empresa_summary_q = (
+        select(
+            models.Empresa.id,
+            models.Empresa.nombre,
+            models.Empresa.nit,
+            func.count(unified_invoices_cte.c.tipo),
+            func.sum(unified_invoices_cte.c.monto_total)
+        )
+        .join(unified_invoices_cte, models.Empresa.id == unified_invoices_cte.c.empresa_id)
+        .group_by(models.Empresa.id, models.Empresa.nombre, models.Empresa.nit)
+    )
+    
+    total_res, batch_res, cat_res, emp_res = await asyncio.gather(
+        db.execute(total_stats_q),
+        db.execute(batch_summary_q),
+        db.execute(categoria_summary_q),
+        db.execute(empresa_summary_q)
+    )
+    
+    suma_total,suma_fiscal, count_m, sum_m, count_e, sum_e = total_res.one()
+    
+    # --- 4. Construir los resúmenes (ahora no necesitamos más consultas) ---
+    resumen_batches = [
+        schemas.BatchResumen(
+            batch_info=schemas.Batch(id=id, nombre=nombre, proyecto_id=proyecto_id, descripcion=None), # Creamos el schema al vuelo
+            cantidad_facturas=count,
+            monto_total_batch=float(total or 0.0)
+        ) for id, nombre, count, total in batch_res.all()
+    ]
+    resumen_categorias = [
+        schemas.CategoriaResumen(
+            categoria_info=schemas.Categoria(id=id, nombre=nombre),
+            cantidad_facturas=count,
+            monto_total_categoria=float(total or 0.0)
+        ) for id, nombre, count, total in cat_res.all()
+    ]
+    resumen_empresas = [
+        schemas.EmpresaResumen(
+            empresa_info=schemas.Empresa(id=id, nombre=nombre, nit=nit),
+            cantidad_facturas=count,
+            monto_total_empresa=float(total or 0.0)
+        ) for id, nombre, nit, count, total in emp_res.all()
+    ]
+    proyecto_schema = schemas.Proyecto.model_validate(proyecto_obj)
+    proyecto_schema=proyecto_schema.model_dump()
+    proyecto_schema.update( {
+        "proyecto":  proyecto_schema,
+        "suma_total": float(suma_total or 0.0),
+        "suma_fiscal":float(suma_fiscal or 0.0),
+        "cantidad_facturas_manuales": count_m, "suma_facturas_manuales": float(sum_m or 0.0),
+        "cantidad_facturas_electronicas": count_e, "suma_facturas_electronicas": float(sum_e or 0.0),
+        "porcentajeGanado": float((suma_fiscal or 0.0) * 0.03),
+        "batches": resumen_batches,
+        "categorias": resumen_categorias,
+        "empresas": resumen_empresas
+    })
+    # --- 5. Ensamblar la respuesta final ---
+    return proyecto_schema
 
 async def get_suma_total_proyecto(db: AsyncSession, proyecto_id: int,filtro_categoria:str="Invalidas"):
     """

@@ -5,20 +5,19 @@ import { getBatchesForProject, getCategoriesForProject } from '../../api/project
 import { createElectronicInvoice } from '../../api/invoiceService';
 import beepSoundURL from '../../assets/beep.mp3';
 import QrInputModal from '../../features/QrReader/QrInputModal';
+import type { Batch, Category } from '../../types';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
   onInvoiceCreated: () => void;
+  categorias?:Category[]
+  baches?:Batch[]
 }
 
-// Suponiendo que tus lotes/categorías tienen esta forma
-interface BatchOrCategory {
-  id: number;
-  nombre: string;
-}
 
-export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoiceCreated }: ModalProps) => {
+
+export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoiceCreated,categorias,baches }: ModalProps) => {
   const [savePdf, setSavePdf] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<number | undefined>();
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
@@ -26,8 +25,8 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
   const [errorMessage, setErrorMessage] = useState('');
   
 
-  const [batches, setBatches] = useState<BatchOrCategory[]>([]);
-  const [categories, setCategories] = useState<BatchOrCategory[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   
   
 
@@ -35,15 +34,15 @@ export const AddElectronicInvoiceModal = ({ isOpen, onClose, projectId, onInvoic
   useEffect(() => {
     if (isOpen) {
       const fetchData = async () => {
-        setBatches(await getBatchesForProject(projectId));
-        setCategories(await getCategoriesForProject());
+        setBatches(baches||await getBatchesForProject(projectId));
+        setCategories(categorias||await getCategoriesForProject());
       };
       fetchData();
       
       // Inicia el escáner de cámara
       // startCameraScanner();
     }
-  }, [isOpen, projectId]);
+  }, [isOpen, projectId,baches,categorias]);
 
 
 

@@ -1,5 +1,6 @@
 // src/pages/admin/AdminPanelPage.tsx
-import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+// import { useState } from 'react';
 import { UserManagementTab } from './UserManagementTab';
 import { ProjectManagementTab } from './ProjectManagementTab';
 import { CompanyManagementTab } from './CompanyManagementTab';
@@ -17,8 +18,9 @@ const tabs: { id: Tab; label: string }[] = [
 ];
 
 export const AdminPanelPage = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('usuarios');
-
+  // const [activeTab, setActiveTab] = useState<Tab>('usuarios');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') as Tab || 'usuarios';
   const renderContent = () => {
     switch (activeTab) {
       case 'usuarios': return <UserManagementTab />;
@@ -43,7 +45,8 @@ export const AdminPanelPage = () => {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => setSearchParams({ tab: tab.id })}
+              
               className={`
                 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                 ${activeTab === tab.id

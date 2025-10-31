@@ -68,27 +68,7 @@ async def leer_proyectos_del_usuario(
     proyectos_schema=await crud_proyecto.get_proyectos_by_user(db, propietario_id=current_user.id)
     proyectos_info_list = []
     for proyecto in proyectos_schema:
-        suma_total = await crud_proyecto.get_suma_total_proyecto(db, proyecto_id=proyecto.id)
-        suma_facturas_manuales = await crud_proyecto.get_suma_manuales_proyecto(db, proyecto_id=proyecto.id)
-        suma_facturas_electronicas = await crud_proyecto.get_suma_electronicas_proyecto(db, proyecto_id=proyecto.id)
-        count_manuales=await crud_proyecto.get_count_facturas_manuales(db, proyecto_id=proyecto.id)
-        count_electronicas=await crud_proyecto.get_count_facturas_electronicas(db, proyecto_id=proyecto.id)
-        resumen_batches = await crud_proyecto.get_resumen_batches_por_proyecto(db, proyecto_id=proyecto.id)
-        resumen_categorias = await crud_proyecto.get_resumen_categoria_por_proyecto(db, proyecto_id=proyecto.id)
-        resumen_empresas= await crud_proyecto.get_resumen_empresa_por_proyecto(db, proyecto_id=proyecto.id)
-        proyecto_data = schemas.Proyecto.model_validate(proyecto).model_dump()
-
-        proyecto_data['suma_total'] = suma_total
-        proyecto_data['cantidad_facturas_manuales'] = count_manuales
-        proyecto_data['cantidad_facturas_electronicas'] = count_electronicas
-        proyecto_data['suma_facturas_manuales'] = suma_facturas_manuales
-        proyecto_data['suma_facturas_electronicas'] = suma_facturas_electronicas
-        proyecto_data['batches'] = resumen_batches # Sobrescribe la lista de batches simple
-        proyecto_data['categorias']=resumen_categorias
-        proyecto_data['empresas']=resumen_empresas
-        proyecto_data['porcentajeGanado'] = suma_total * 0.03
-
-
+        proyecto_data=await crud_proyecto.get_proyecto_full_resume(db, proyecto_id=proyecto.id)
         proyecto_info = schemas.ProyectoInfo(**proyecto_data)
         proyectos_info_list.append(proyecto_info)
 
@@ -177,40 +157,15 @@ async def leer_proyectos_paginated(
 
 
 
+
+
 @router.get("/{proyecto_id}/fullresume", response_model=schemas.ProyectoInfo)
 async def leer_proyectos_del_usuario(
     db: AsyncSession = Depends(get_db),
     proyecto: models.Proyecto = Depends(require_role(allowed_roles=["dueño", "editor", "lector"]))
     
 ):
-    
-    suma_total = await crud_proyecto.get_suma_total_proyecto(db, proyecto_id=proyecto.id)
-    suma_facturas_manuales = await crud_proyecto.get_suma_manuales_proyecto(db, proyecto_id=proyecto.id)
-    suma_facturas_electronicas = await crud_proyecto.get_suma_electronicas_proyecto(db, proyecto_id=proyecto.id)
-    count_manuales=await crud_proyecto.get_count_facturas_manuales(db, proyecto_id=proyecto.id)
-    count_electronicas=await crud_proyecto.get_count_facturas_electronicas(db, proyecto_id=proyecto.id)
-    resumen_batches = await crud_proyecto.get_resumen_batches_por_proyecto(db, proyecto_id=proyecto.id)
-    resumen_categorias = await crud_proyecto.get_resumen_categoria_por_proyecto(db, proyecto_id=proyecto.id)
-    resumen_empresas= await crud_proyecto.get_resumen_empresa_por_proyecto(db, proyecto_id=proyecto.id)
-    proyecto_data = schemas.Proyecto.model_validate(proyecto).model_dump()
-
-    proyecto_data['suma_total'] = suma_total
-    proyecto_data['cantidad_facturas_manuales'] = count_manuales
-    proyecto_data['cantidad_facturas_electronicas'] = count_electronicas
-    proyecto_data['suma_facturas_manuales'] = suma_facturas_manuales
-    proyecto_data['suma_facturas_electronicas'] = suma_facturas_electronicas
-    proyecto_data['batches'] = resumen_batches # Sobrescribe la lista de batches simple
-    proyecto_data['categorias']=resumen_categorias
-    proyecto_data['empresas']=resumen_empresas
-    proyecto_data['porcentajeGanado'] = suma_total * 0.03
-
-
-    proyecto_info = schemas.ProyectoInfo(**proyecto_data)
-        
-
-
-
-    return proyecto_info
+    return await crud_proyecto.get_proyecto_full_resume(db, proyecto_id=proyecto.id)
 
 @router.get("/{proyecto_id}", response_model=schemas.Proyecto)
 async def leer_proyecto(

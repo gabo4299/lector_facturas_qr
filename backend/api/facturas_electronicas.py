@@ -164,8 +164,8 @@ async def crear_factura_electronica(
 
     factura_creada = await crud_facturas_electronicas.create_factura_electronica_inicial(db=db, factura=factura_inicial)
     # 2. Añade la tarea de larga duración al segundo plano.
-    #    Esta función se ejecutará DESPUÉS de que la respuesta haya sido enviada.
-
+    
+    
     background_tasks.add_task(
         factura_service.tarea_de_scraping_y_actualizacion, # La función a ejecutar AQUI SE DA LOS ERRORES DE FECHA Y ETC
         factura_id=factura_creada.id, # Argumentos para la función
@@ -173,6 +173,7 @@ async def crear_factura_electronica(
         proyect_id=factura_inicial.proyecto_id,
         savePdf=factura_creada.save_pdf
     )
+    db_factura= await crud_facturas_electronicas.bloquear_factura(db=db,factura_id=factura_creada.id)
     return factura_creada
     # return await crud_facturas_electronicas.create_factura_electronica(db=db, factura=factura)
 
@@ -209,11 +210,8 @@ async def actualizar_factura_electronica(factura_id: int,
     
     if db_factura_inicial is None:
         raise HTTPException(status_code=404, detail="Factura electronica no encontrada")
-    
-    
-
-    
-    
+    if db_factura_inicial.status == "procesando":
+        raise HTTPException(status_code=409, detail="Factura electronica procesandose")
     if factura.save_pdf != None:
         
         # print("factura inicial ",db_factura_inicial.save_pdf)
@@ -261,29 +259,36 @@ async def check_factura_electronica(factura_id: int,
     db_factura=factura_cuestion
     categoria_x=await crud_categoria.get_or_create_categoria(db=db,name="Invalidas")
     
-    
+    #  si la cagetoria no es invalida
     if categoria_x.id != db_factura.categoria_id:
+        # si la factura esta completa entonces no se hace nada  solo se manda la facutra
         if db_factura.complete == True:
             try:
                 factura_schema = schemas.FacturaElectronica.model_validate(db_factura)
-                # intentar serealizar para no ahcer un schema nuevo
+                
                 contenido_serializable = {
                         "msg": "factura ya completada",
                         "factura": factura_schema.model_dump(mode="python") # o .dict() en Pydantic v1
                     }
-                print("\n\n\n\n\n\n\n\n\n\n la facuta es ",contenido_serializable["factura"])
                 contenido_serializable["factura"]['fecha']=contenido_serializable["factura"]['fecha'].isoformat()
                 contenido_serializable["factura"].pop("proyecto")
-                return JSONResponse(content=contenido_serializable)
+                
             except:
                 print("error al desearilizar la factura\n")
                 contenido_serializable = {
                         "msg": "factura ya completada"}
 
-                return JSONResponse(content=contenido_serializable)
-    #  te falta poner en ele service proyect_id=factura_inicial.proyecto_id,
-        db_fact= await factura_service.tarea_de_scraping_y_actualizacion(factura_id=factura_id,proyect_id=db_factura.proyecto_id,url=db_factura.url,savePdf=db_factura.save_pdf)
-        return db_fact
+            return JSONResponse(content=contenido_serializable)
+    
+        if db_factura.status !="procesando":
+            db_fact= await factura_service.tarea_de_scraping_y_actualizacion(factura_id=factura_id,proyect_id=db_factura.proyecto_id,url=db_factura.url,savePdf=db_factura.save_pdf)
+            return db_fact
+        else:
+            contenido_serializable = {
+                        "msg": "factura procesandose"}
+
+            return JSONResponse(content=contenido_serializable)
+
     else:
         contenido_serializable = {
                 "msg": "Error la factura es invalida "}

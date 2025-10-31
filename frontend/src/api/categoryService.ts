@@ -29,7 +29,7 @@ export const createCategory = async (data: CategoryPayload) => {
 export const getCategories = async () => {
   try {
     // Asegúrate de que este sea tu endpoint para crear categorías
-    const response = await apiClient.get('/categorias');
+    const response = await apiClient.get('/categorias/');
     return response.data;
   } catch (error) {
     if (isAxiosError(error)) {

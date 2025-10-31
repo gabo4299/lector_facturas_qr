@@ -1,7 +1,7 @@
 // src/pages/ProjectDetailPage.tsx
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { getProjectById,getReport,getResumeProject } from '../api/projectService';
+import {checkAllInvoices, getReport,getResumeProject } from '../api/projectService';
 import { Popover,PopoverButton,PopoverPanel } from '@headlessui/react';
 // modales
 import EditIcon from '../components/ui/icons/EditIcon';
@@ -22,19 +22,16 @@ import { InvoiceFilters as InvoiceFiltersComponent } from '../components/ui/Invo
 import { Pagination } from '../components/ui/Pagination'; // Asegúrate de tener este componente
 // --------
 import { EditInvoiceModal } from '../components/modals/EditInvoiceModal';
-import type {ProjectResume,ElectronicInvoiceAPI,ManualInvoiceAPI} from '../types'
+import type {ProjectResume,ElectronicInvoiceAPI,ManualInvoiceAPI, Category,Batch} from '../types'
 import DownloadIcon from '../components/ui/icons/DownloadIcon';
 import RefreshIcon from '../components/ui/icons/RefreshIcon';
 import { ProjectStatsBreakdown } from '../components/ui/ProjectStatsBreakdown';
+import { getCategories } from '../api/categoryService';
 
 
 
 
-export interface Batch{
-    nombre:string;
-    descripcion:string;
-    id:number;
-}
+
 
 
 
@@ -51,21 +48,14 @@ export interface UnifiedInvoice {
   save_pdf:boolean;
   category: string;
   total_amount: number;
+  total_fiscal?: number;
   special?:boolean;
   complete:boolean;
   vat: number;
   fecha_date?:Date;
 }
 // Tipos para los datos que vienen de la API
-interface ProjectData { // Solo datos del proyecto
-  id: number;
-  nombre: string;
-  fecha_inicio: Date;
-  fecha_fin:Date;
-  nit_beneficiario:string;
-  batches:Batch[];
-  // ... otros campos del proyecto
-}
+
 
 
 
@@ -73,9 +63,11 @@ interface ProjectData { // Solo datos del proyecto
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams<{ projectId: string }>(); // Obtiene el ID de la URL
-  const [project, setProject] = useState<ProjectData | null>(null);
+  // const [project, setProject] = useState<ProjectData | null>(null);
   const [resumeProject,setResumeProject]=useState<ProjectResume | null>(null);
   const [unifiedInvoices, setUnifiedInvoices] = useState<UnifiedInvoice[]>([]);
+  const [batchesProyecto, setBatchesProyecto] = useState<Batch[]>([]);
+  const [categorias, setCategorias] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +76,7 @@ export const ProjectDetailPage = () => {
   const [isManualInvoiceModalOpen, setIsManualInvoiceModalOpen] = useState(false);
   const [isElectronicInvoiceModalOpen, setIsElectronicInvoiceModalOpen] = useState(false);
   const [virtualInvoices , setVirtualInvoices] = useState(false);
+  const [unclompleteInvoices , setUnclompleteInvoices] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [invoiceToEdit, setInvoiceToEdit] = useState<UnifiedInvoice | null>(null);
   // states filtros 
@@ -106,12 +99,21 @@ const [isDetailsOpen, setIsDetailsOpen] = useState(false); // 👈 2. Nuevo esta
 
 useEffect(() => {
     if (projectId) {
-      getProjectById(projectId)
-        .then(data => setProject(data))
-        .catch(err => setError((err as Error).message));
       getResumeProject(projectId)
-        .then(data=>setResumeProject(data))
+        .then(data => {
+          setResumeProject(data); // Guardas los datos completos del resumen
+
+          // 👇 2. DENTRO DEL useEffect, DESPUÉS DE OBTENER LOS DATOS, HACEMOS LA TRANSFORMACIÓN
+          if (data && data.batches) {
+            // Usamos .map() para crear un nuevo array que contenga solo el objeto 'batch_info' de cada elemento.
+            const extractedBatches = data.batches.map((resume: { batch_info: Batch; }) => resume.batch_info);
+            setBatchesProyecto(extractedBatches); // Guardamos la nueva lista en su estado
+          }
+        })
         .catch(err => setError((err as Error).message));
+      getCategories().then(
+        data=>setCategorias(data)
+      ).catch(err => setError((err as Error).message));
     }
   }, [projectId]);
 
@@ -125,6 +127,7 @@ useEffect(() => {
             // ... (tu lógica de mapeo para manual y electrónica)
             // ... (necesitarás una forma de saber si 'inv' es manual o electrónica)
             const isManual = !('status' in inv); // Asunción simple
+            // console.log(isManual?"es manual ":inv.monto_fiscal!)
             
             return {
               id: `${isManual ? 'M' : 'E'}-${inv.id}`,
@@ -137,6 +140,7 @@ useEffect(() => {
               date: new Date(inv.fecha).toLocaleDateString(),
               provider: inv.empresa?.nombre || 'N/A',
               total_amount: inv.monto_total,
+              total_fiscal: isManual?inv.monto_total:inv.monto_fiscal||inv.monto_total,
               vat: inv.monto_total * 0.03,
               batch: inv.batch?.nombre || '-',
               batch_id: inv.batch?.id || undefined,
@@ -154,6 +158,14 @@ useEffect(() => {
             else{
               setVirtualInvoices(false);
             }
+
+             const isInconplete = unified.some(i => i.complete === false);
+            if (isInconplete) {
+              setUnclompleteInvoices(true);
+            }
+            else{
+              setUnclompleteInvoices(false);
+            }
           setUnifiedInvoices(unified);
           setTotalPages(response.total_pages);
           setTotalItems(response.total);
@@ -170,14 +182,11 @@ useEffect(() => {
         setLoading(true);
         try {
           const response = await getPaginatedInvoices(projectId||"", currentPage, limit, sortBy, sortOrder, activeFilters);
-          console.log("fitlros son ",activeFilters)
-          // La lógica de unificación ahora se aplica a 'response.items'
-          console.log("esta es al respuesta",response)
-          // setInvoicesResponse(response.items)
+
           const unified = response.items.map((inv: (ElectronicInvoiceAPI|ManualInvoiceAPI)): UnifiedInvoice => {
-            // ... (tu lógica de mapeo para manual y electrónica)
-            // ... (necesitarás una forma de saber si 'inv' es manual o electrónica)
+
             const isManual = !('status' in inv); // Asunción simple
+            console.log(isManual?"es manual ":inv.monto_fiscal!)
             return {
               id: `${isManual ? 'M' : 'E'}-${inv.id}`,
               type: isManual ? 'Manual' : 'Electrónica',
@@ -189,6 +198,7 @@ useEffect(() => {
               date: new Date(inv.fecha).toLocaleDateString(),
               provider: inv.empresa?.nombre || 'N/A',
               total_amount: inv.monto_total,
+              total_fiscal: isManual?inv.monto_total:inv.monto_fiscal||inv.monto_total,
               vat: inv.monto_total * 0.03,
               batch: inv.batch?.nombre || '-',
               batch_id: inv.batch?.id || undefined,
@@ -228,15 +238,7 @@ useEffect(() => {
     setCurrentPage(1);
   };
 
-  //  useEffect(() => {
-  //   if (projectId) {
-  //      getProjectById(projectId)
-  //       .then(data => setProject(data))
-  //       .catch(err => setError((err as Error).message));
-  //     fetchInvoices();
-  //   }
-  // }, [projectId, currentPage, limit, sortBy, sortOrder, debouncedFilters]);
-
+  
    const handleSort = (column: string) => {
     if (sortBy === column) {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -265,6 +267,7 @@ useEffect(() => {
     if (projectId) {
       // Simplemente volvemos a llamar a la función de carga
       // fetchProjectData(projectId);
+      handleResetFilters();
       fetchInvoices();
     }
   };
@@ -278,7 +281,7 @@ useEffect(() => {
 
 
 
-   if (!project || !unifiedInvoices) {
+   if (!resumeProject || !unifiedInvoices) {
     return <div className="text-center p-8">No se encontraron datos.</div>;
   }
 
@@ -352,8 +355,9 @@ useEffect(() => {
     totalInvoices: totalElecInvoices+totalManualInvoices ,
     manualInvoices: resumeProject?.cantidad_facturas_manuales || 0,
     electronicInvoices: resumeProject?.cantidad_facturas_electronicas||0,
-    totalBatches: project.batches?.length || 0,
+    totalBatches: resumeProject.batches?.length || 0,
     totalSum: resumeProject?.suma_total,
+    totalFiscal: resumeProject?.suma_fiscal,
     totalVat: resumeProject?.porcentajeGanado,
     sumaElectronicas:resumeProject?.suma_facturas_electronicas,
     sumaManuales:resumeProject?.suma_facturas_manuales
@@ -374,6 +378,11 @@ useEffect(() => {
       
     
   }
+
+      const handleCheckFactuas=async ()=>{
+    const data= await checkAllInvoices(projectId!);
+    alert(data?.mensaje)
+  }
   const handleCheckInvoice=async (numericId:string,status:string)=>{
 
     if (status === 'pendiente'){
@@ -391,7 +400,10 @@ useEffect(() => {
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
         <div className='relative'>
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">{project.nombre}</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">{resumeProject.nombre}</h1>
+        <p className="text-xs text-gray-800">
+          del  {new Date(resumeProject.fecha_inicio).toLocaleDateString()} al  {new Date(resumeProject.fecha_fin).toLocaleDateString()}
+        </p>
             <div className="mt-4 ml-2 p-4 bg-gray-100 rounded-lg border border-gray-200">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 text-sm">
             <div className="text-gray-700">
@@ -412,9 +424,10 @@ useEffect(() => {
                 <span>Ganancia:</span> <span className='text-green-600'>{((stats.sumaManuales||0)*0.03).toLocaleString('es-BO', { style: 'currency', currency: 'BOB' })}</span></div>}
             </div>
             <div className="text-gray-700">
-              <strong className="block">Suma Total:</strong>
-              <span>{stats.totalSum?.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' })}</span>
+              <strong className="block">Suma Total | Fiscal:</strong>
+              <span>{stats.totalSum?.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' })} | {stats.totalFiscal?.toLocaleString('es-BO', { style: 'currency', currency: 'BOB' })} </span>
             </div>
+            
             <div className="text-gray-700">
               {/* Asumiendo que "ganancia" se refiere al crédito fiscal (IVA) */}
               <strong className="block">Ganancia (3%):</strong>
@@ -459,13 +472,10 @@ useEffect(() => {
         <button 
             onClick={() => setIsBatchModalOpen(true)}
             className="px-4 py-2 font-medium text-gray-700 transition-colors bg-white border border-gray-300 rounded-md hover:bg-gray-100 w-full lg:w-auto">
-          Agregar Lote
+          Agregar Batch
         </button>
-        {virtualInvoices &&<button
-            onClick={handleDowloadReporte } 
-            className="px-2 py-2 font-bold text-white transition-colors bg-green-600 rounded-md hover:bg-blue-green shadow-lg w-full lg:w-auto">
-          Descargar Reporte
-        </button> }
+    
+    
         
 
       </div>
@@ -482,11 +492,25 @@ useEffect(() => {
           categories={resumeProject?.categorias || []}
           companies={resumeProject?.empresas||[]}
         />
+        
+        <div className="mt-6 mb-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:flex lg:space-x-3 gap-3">
+                      {virtualInvoices &&<button
+            onClick={handleDowloadReporte } 
+            className="px-2 py-2 font-bold text-white transition-colors bg-green-600 rounded-md hover:bg-blue-green shadow-lg w-full lg:w-auto">
+          Descargar Reporte
+        </button> }
+          { unclompleteInvoices && <button
+            onClick={handleCheckFactuas } 
+            className="px-2 py-2 font-bold text-white transition-colors bg-yellow-600 rounded-md hover:bg-blue-green shadow-lg w-full lg:w-auto">
+          Rehacer Incompletas
+        </button> }
+
+        </div>
       <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">id</th>
+              <th onClick={() => handleSort('fecha_creacion')} className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"> {sortBy === 'fecha_creacion' && (sortOrder === 'asc' ? '▲' : '▼')}id</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               <th onClick={() => handleSort('fecha')} className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha {sortBy === 'fecha' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
               <th onClick={() => handleSort('empresa')} className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa {sortBy === 'empresa' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
@@ -566,7 +590,30 @@ useEffect(() => {
                           </PopoverPanel>
                         </Popover>
                       </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.total_amount.toFixed(2)}</td>
+
+                  {invoice.special!== true && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.total_amount.toFixed(2)}</td>}
+                  {invoice.special=== true && 
+                  <td className="px-6 py-4 text-sm font-medium">
+                        {/* Popover se encargará de la lógica de mostrar/ocultar */}
+                        <Popover className="relative flex">
+                          <PopoverButton
+                            as="span" // Lo renderizamos como un span para que no parezca un botón
+                            className={`truncate inline-flex max-w-25 px-2 text-xs leading-5 font-semibold rounded-full text-yellow-700 cursor-pointer focus:outline-none`}
+                            // Mantenemos el title para que los usuarios de escritorio sigan teniendo la funcionalidad de hover
+                            title={`Total: ${invoice.total_amount.toFixed(2)} Fiscal: ${invoice.total_fiscal?.toFixed(2)}`}
+                          >
+                            {invoice.total_amount.toFixed(2)}
+                          </PopoverButton>
+
+                          {/* Este es el panel que aparece al tocar el texto */}
+                          <PopoverPanel className="absolute z-10 w-max max-w-xs transform -translate-y-full -top-2 p-2 text-sm font-normal text-white bg-gray-900 rounded-lg shadow-sm">
+                            <div className="whitespace-normal break-words">
+                              Monto Total : {invoice.total_amount.toFixed(2)}  Monto Fiscal: {invoice.total_fiscal?.toFixed(2)}
+                            </div>
+                          </PopoverPanel>
+                        </Popover>
+                      </td>
+                  }
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.vat.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full `}>
@@ -605,27 +652,33 @@ useEffect(() => {
        <AddManualInvoiceModal
         isOpen={isManualInvoiceModalOpen}
         onClose={() => setIsManualInvoiceModalOpen(false)}
-        projectId={project.id.toString()}
-        nitBeneficiario={project.nit_beneficiario} // Asegúrate que este dato venga en `project`
+        projectId={resumeProject.id.toString()}
+        nitBeneficiario={resumeProject.nit_beneficiario} // Asegúrate que este dato venga en `project`
         onInvoiceCreated={refreshProjectData}
+        baches={batchesProyecto}
+        categorias={categorias}
       />
       <AddElectronicInvoiceModal
         isOpen={isElectronicInvoiceModalOpen}
         onClose={() => setIsElectronicInvoiceModalOpen(false)}
-        projectId={project.id.toString()}
+        projectId={resumeProject.id.toString()}
         onInvoiceCreated={refreshProjectData}
+        baches={batchesProyecto}
+        categorias={categorias}
       />
       <AddBatchInvoicesModal
           isOpen={isBatchScanModalOpen}
           onClose={() => setIsBatchScanModalOpen(false)}
-          projectId={project.id.toString()}
+          projectId={resumeProject.id.toString()}
           onInvoiceCreated={refreshProjectData}
+          baches={batchesProyecto}
+        categorias={categorias}
         />
         <EditInvoiceModal
         isOpen={isEditModalOpen}
         onClose={handleCloseModals}
         invoice={invoiceToEdit}
-        batches={project.batches || []}
+        batches={batchesProyecto || []}
         onInvoiceUpdated={() => {
           handleCloseModals();
           refreshProjectData(); // Reutiliza tu función para refrescar datos

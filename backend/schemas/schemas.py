@@ -163,6 +163,7 @@ class PaginatedProyectosAdminResponse(BaseModel):
     pages: int
 class ProyectoInfo(Proyecto):
     suma_total:Optional[float] = None
+    suma_fiscal:Optional[float] = None
     cantidad_facturas_electronicas:Optional[int] = None
     cantidad_facturas_manuales:Optional[int] = None
     suma_facturas_electronicas:Optional[float] = None
@@ -341,7 +342,7 @@ class FiltrosFactura(BaseModel):
     size: int = 20
     
     # Parámetros de Ordenamiento
-    sort_by: Literal['fecha', 'monto_total','empresa', 'categoria', 'batch'] = 'fecha'
+    sort_by: Literal['fecha', 'monto_total','empresa', 'categoria', 'batch','fecha_creacion'] = 'fecha'
     sort_order: Literal['asc', 'desc'] = 'desc'
 
     # Parámetro de Filtro de Proyecto (opcional)

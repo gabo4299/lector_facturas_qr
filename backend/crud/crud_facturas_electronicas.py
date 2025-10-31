@@ -87,7 +87,7 @@ async def create_factura_electronica_inicial(db: AsyncSession, factura: FacturaE
     db.add(db_factura)
     await db.commit()
     await db.refresh(db_factura)
-    print(f"Factura inicial creada para url {factura.url}")
+    # print(f"Factura inicial creada para url {factura.url} con estado {db_factura.status}")
     return await get_factura_electronica(db, factura_id=db_factura.id)
 
 
@@ -275,9 +275,14 @@ async def update_factura_desde_scraping(db: AsyncSession, factura_id: int, datos
         db_factura.empresa_id = empresa_obj.id
         if empresa_obj.rubro == "Gasolinera" and db_factura.factura_especial == False:
             db_factura.factura_especial=True
-        if  db_factura.factura_especial==True:
-            db_factura.monto_total =  db_factura.monto_total*0.70
-
+        
+        if update_data["monto_fiscal"]== -1:
+            if  db_factura.factura_especial==True:
+                update_data["monto_fiscal"]=round(update_data["monto_total"]*0.7,2)
+            else:
+                update_data["monto_fiscal"]=update_data["monto_total"]
+            
+    
     
     if update_data["complete"] == True:
         if update_data["Nit_Beneficiario"] != proyecto.nit_beneficiario:

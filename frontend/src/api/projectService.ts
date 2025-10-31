@@ -42,7 +42,7 @@ export const getProjectById = async (projectId: string) => {
  */
 export const getProjectsByUser = async () => {
   try {
-    const response = await apiClient.get('/proyectos'); // Asegúrate que este sea tu endpoint
+    const response = await apiClient.get('/proyectos/'); // Asegúrate que este sea tu endpoint
     return response.data;
   } catch (error) {
    if (isAxiosError(error)) {
@@ -64,6 +64,30 @@ export const getProjectsByUser = async () => {
 export const getProjectsall = async () => {
   try {
     const response = await apiClient.get('/proyectos/all'); // Asegúrate que este sea tu endpoint
+    return response.data;
+  } catch (error) {
+   if (isAxiosError(error)) {
+      if (error.response?.status === 404) {
+        throw new Error('El proyecto no fue encontrado.');
+      }
+      if (error.response?.status === 403 || error.response?.status === 401) {
+        logout()
+        window.location.href = '/login';
+        throw new Error('No tienes permiso para ver este proyecto.');
+
+      }
+    }
+    throw new Error('Ocurrió un error al cargar el proyecto.');
+  }
+};
+
+
+
+export const checkAllInvoices = async (projectId: string) => {
+  
+  try {
+    const response = await apiClient.get(`/proyectos/${projectId}/check_facturas`);
+    
     return response.data;
   } catch (error) {
    if (isAxiosError(error)) {
@@ -178,7 +202,7 @@ export const getBatchesForProject = async (projectId: string) => {
 export const getCategoriesForProject = async () => {
   try {
 
-    const response = await apiClient.get(`/categorias`); // Asumiendo este endpoint
+    const response = await apiClient.get(`/categorias/`); // Asumiendo este endpoint
     return response.data;
   } catch (error) {
     console.error("Error al obtener categorías:", error);

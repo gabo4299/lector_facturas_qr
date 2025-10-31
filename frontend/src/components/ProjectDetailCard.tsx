@@ -37,7 +37,7 @@ export const ProjectDetailCard = ({ project, onProjectDeleted , onAddManualInvoi
   }, []);
 
   useEffect(() => {
-    setNBatchs(project.batches.length)
+    setNBatchs(project.batches?.length||0)
   
     return () => {
       
@@ -210,7 +210,7 @@ const getGridColsClass = () => {
             </div>
         </div>
         <div className={`mt-4 grid grid-cols-1 gap-4 text-center ${getGridColsClass()}`}>
-        {project.batches.map ((i,index)=>(
+        {project.batches?.map ((i,index)=>(
             <div key={index} className=''>
                 <div>
                      <p className="text-xs text-gray-500">

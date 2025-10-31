@@ -12,7 +12,7 @@ import { logout } from './authService';
  */
 export const getCompanies = async (): Promise<Company[]> => {
   try {
-    const response = await apiClient.get('/empresas'); // Asegúrate que este sea tu endpoint
+    const response = await apiClient.get('/empresas/'); // Asegúrate que este sea tu endpoint
     return response.data;
   } catch (error) {
     console.error("Error al obtener empresas:", error);

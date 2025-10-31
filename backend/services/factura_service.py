@@ -92,6 +92,7 @@ async def procesar_factura_completa_desde_url (url: str,
             datos_factura["Nit_Beneficiario"]=data.get("numeroDocumento")
             datos_factura["status"]= "Complete"
             datos_factura["complete"]= True
+            datos_factura["monto_fiscal"]=-1
             
             
         except Exception as e:
@@ -177,6 +178,9 @@ async def tarea_de_scraping_y_actualizacion(factura_id: int, url: str,proyect_id
     except Exception as e:
         print(f"   Tipo de Error: {type(e).__name__}")
         print(f"Error en la tarea en segundo plano para factura ID {factura_id}: {e}")
+        async with AsyncSessionLocal() as db:
+            # 3. Llama al CRUD para actualizar 
+            crud_facturas_electronicas.update_status_factura_electronica(db,factura_id,f"Error en el proceso { {type(e).__name__}}",False)
         # Aquí podrías actualizar la factura con un estado de "error"
 
 

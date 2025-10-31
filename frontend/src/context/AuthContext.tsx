@@ -62,11 +62,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
-    console.log("AuthProvider CARGANDO. Token encontrado:", token);
+    // console.log("AuthProvider CARGANDO. Token encontrado:", token);
     if (token) {
       setIsAuthenticated(true);
       const decodedUser: User = jwtDecode(token); // Decodifica el token
-      console.log("Usuario decodificado del token:", decodedUser); 
+      // console.log("Usuario decodificado del token:", decodedUser); 
       
       setUser(decodedUser); // Guarda los datos del usuario
     }

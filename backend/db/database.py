@@ -18,6 +18,14 @@ engine = create_async_engine(DATABASE_URL,
                              connect_args={"statement_cache_size": 0,},
                             #  execution_options={"postgresql_prepare_threshold": 0,},
                             #  pool_pre_ping=True,
+                            # --- AJUSTES PARA SUPABASE (PgBouncer) ---
+                            # poolclass=NullPool  # Opción 1: La más simple y segura.
+                            
+                            # Opción 2: Un pool pequeño y bien configurado (Recomendado)
+                            # pool_size=10,             # Mantén un número bajo de conexiones "favoritas".
+                            # max_overflow=5,          # No permitas crear más conexiones que las del pool.
+                            # pool_recycle=300,        # Recicla/reemplaza conexiones cada 5 minutos (300s).
+                            # pool_pre_ping=True,       # Antes de usar una conexión, haz un "ping" para ver si sigue viva.
                              echo=False,)
 
 # Crea una fábrica de sesiones asíncronas

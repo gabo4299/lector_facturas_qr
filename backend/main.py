@@ -1,13 +1,45 @@
 # main.py
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware # 👈 1. Importa CORSMiddleware
 
 from backend.api import facturas_manuales, facturas_electronicas,auth,proyectos,usuarios,categorias,empresas,batch
 import sys
 import asyncio
+
+from backend.crud import crud_categoria
+from backend.db.database import AsyncSessionLocal
+from backend.config  import app_state
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-app = FastAPI()
+
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- CÓDIGO QUE SE EJECUTA AL INICIAR EL SERVIDOR ---
+    print("INFO: Iniciando servidor, cargando configuración inicial...")
+    db = AsyncSessionLocal()
+    try:
+        # Buscamos la categoría 'Invalidas' y guardamos su ID en nuestro estado
+        categoria_invalidas = await crud_categoria.get_categoria_by_name(db, "Invalidas")
+        if categoria_invalidas:
+            app_state["invalidas_cat_id"] = categoria_invalidas.id
+            print(f"INFO: ID de categoría 'Invalidas' cargado en caché: {app_state['invalidas_cat_id']}")
+        else:
+            app_state["invalidas_cat_id"] = -1 # Un valor que nunca coincidirá
+            print("WARN: No se encontró la categoría 'Invalidas' en la base de datos.")
+    finally:
+        await db.close()
+    
+    yield # La aplicación se ejecuta aquí
+
+    # --- CÓDIGO QUE SE EJECUTA AL APAGAR EL SERVIDOR ---
+    print("INFO: Apagando servidor.")
+    app_state.clear()
+
+app = FastAPI(lifespan=lifespan)
+
 
 
 # 🚩🚩🚩🚩🚩 atencion al procesar en pdf la factura si tiene una como ej 4,390.00 se omite el 4 gran error 

@@ -52,6 +52,9 @@ export interface ProjectInfo {
 }
 
 
+
+
+
 export interface ProjectInfoDetail {
   id: number;
   nombre: string;
@@ -148,6 +151,7 @@ export interface ProjectResume { // Solo datos del proyecto
   fecha_fin:Date;
   nit_beneficiario:string;
   suma_total:number;
+  suma_fiscal?:number;
   cantidad_facturas_electronicas:number;
   cantidad_facturas_manuales:number;
   suma_facturas_electronicas:number;

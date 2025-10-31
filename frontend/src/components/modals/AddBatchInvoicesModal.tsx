@@ -5,25 +5,28 @@ import { getBatchesForProject, getCategoriesForProject } from '../../api/project
 import { createElectronicInvoice } from '../../api/invoiceService';
 import beepSoundURL from '../../assets/beep.mp3';
 import QrInputModal from '../../features/QrReader/QrInputModal';
+import type { Batch, Category } from '../../types';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
   onInvoiceCreated: () => void;
+    categorias?:Category[]
+    baches?:Batch[]
 }
 
-interface BatchOrCategory { id: number; nombre: string; }
+
 interface Status { type: 'idle' | 'success' | 'error'; message: string; }
 
-export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCreated }: ModalProps) => {
+export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCreated,categorias,baches }: ModalProps) => {
   const [scannedUrls, setScannedUrls] = useState<string[]>([]);
   const [status, setStatus] = useState<Status>({ type: 'idle', message: 'Listo para escanear.' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [selectedBatch, setSelectedBatch] = useState<number | undefined>();
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
-  const [batches, setBatches] = useState<BatchOrCategory[]>([]);
-  const [categories, setCategories] = useState<BatchOrCategory[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const modalRef = useRef<HTMLDivElement>(null);
   
@@ -59,15 +62,15 @@ export const AddBatchInvoicesModal = ({ isOpen, onClose, projectId, onInvoiceCre
     setScannedUrls([]);
     setSavePdf(false);
     const fetchData = async () => {
-      setBatches(await getBatchesForProject(projectId));
-      setCategories(await getCategoriesForProject());
+      setBatches(baches||await getBatchesForProject(projectId));
+      setCategories(categorias||await getCategoriesForProject());
     };
     fetchData();
 
    
 
     
-  }, [isOpen, projectId]);
+  }, [isOpen, projectId,baches,categorias]);
 
   
   

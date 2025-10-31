@@ -5,3 +5,26 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000 --ssl-keyfile ./loc
 
 desde lector_facturas/backend
 fastapi run ./main
+
+
+
+para migrar 
+-u user 
+-h host 
+-p port
+-d database
+-F c  forzar compresion para utilizar con el comando pg_restore sin eso es solamente un .sql  y se usa psql
+-file el archivo si n ose usa eso no da
+pg_dump -U postgres.wvvawznlijvlspvixurq -h aws-1-us-east-1.pooler.supabase.com -p 5432 -d postgres -F c --no-owner --no-acl -f mi_backup_supa.dump
+
+pass: NXk89aC0Ft6ngofc
+
+ahora para restaurar esto es 
+
+-h host 
+-u usuario 
+-d database
+
+pg_restore -h aws-1-sa-east-1.pooler.supabase.com -p 5432 -U postgres.fbjadpjrxqwbifehvcfa -d postgres --clean -v mi_backup_supa.dump
+
+

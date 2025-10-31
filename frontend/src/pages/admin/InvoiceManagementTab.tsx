@@ -15,6 +15,7 @@ import RefreshIcon from '../../components/ui/icons/RefreshIcon';
 import DownloadIcon from '../../components/ui/icons/DownloadIcon';
 import { getCompanies } from '../../api/companyService';
 import { getProjectsall } from '../../api/projectService';
+import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 export interface Batch{
     nombre:string;
     descripcion:string;
@@ -36,6 +37,7 @@ export interface UnifiedInvoice {
   save_pdf:boolean;
   category: string;
   total_amount: number;
+  total_fiscal?: number;
   special?:boolean;
   complete:boolean;
   vat: number;
@@ -117,6 +119,7 @@ export const InvoiceManagementTab = () => {
                     date: new Date(inv.fecha).toLocaleDateString(),
                     provider: inv.empresa?.nombre || 'N/A',
                     total_amount: inv.monto_total,
+                    total_fiscal: isManual?inv.monto_total:inv.monto_fiscal||inv.monto_total,
                     vat: inv.monto_total * 0.03,
                     batch: inv.batch?.nombre || '-',
                     batch_id: inv.batch?.id || undefined,
@@ -164,6 +167,7 @@ export const InvoiceManagementTab = () => {
                   date: new Date(inv.fecha).toLocaleDateString(),
                   provider: inv.empresa?.nombre || 'N/A',
                   total_amount: inv.monto_total,
+                  total_fiscal: isManual?inv.monto_total:inv.monto_fiscal||inv.monto_total,
                   vat: inv.monto_total * 0.03,
                   batch: inv.batch?.nombre || '-',
                   batch_id: inv.batch?.id || undefined,
@@ -360,7 +364,7 @@ export const InvoiceManagementTab = () => {
         <table className="w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">id</th>
+              <th onClick={() => handleSort('fecha_creacion')} className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"> {sortBy === 'fecha_creacion' && (sortOrder === 'asc' ? '▲' : '▼')}id</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               <th onClick={() => handleSort('fecha')} className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha {sortBy === 'fecha' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
               <th onClick={() => handleSort('empresa')} className="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa {sortBy === 'empresa' && (sortOrder === 'asc' ? '▲' : '▼')}</th>
@@ -414,15 +418,49 @@ export const InvoiceManagementTab = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 ">{invoice.provider}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{invoice.batch}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">    {invoice.project?.nombre}     </td>
-                  <td className="px-6 py-4 text-sm font-medium ">
-                    <span
-                    title={invoice.status} // ✨ Muestra el texto completo al pasar el ratón
-                    className={`truncate inline-flex max-w-25 px-2 text-xs leading-5 font-semibold rounded-full `}
-                    >
-                    {invoice.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.total_amount.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-sm font-medium">
+                        {/* Popover se encargará de la lógica de mostrar/ocultar */}
+                        <Popover className="relative flex">
+                          <PopoverButton
+                            as="span" // Lo renderizamos como un span para que no parezca un botón
+                            className={`truncate inline-flex max-w-25 px-2 text-xs leading-5 font-semibold rounded-full cursor-pointer focus:outline-none`}
+                            // Mantenemos el title para que los usuarios de escritorio sigan teniendo la funcionalidad de hover
+                            title={invoice.status}
+                          >
+                            {invoice.status}
+                          </PopoverButton>
+
+                          {/* Este es el panel que aparece al tocar el texto */}
+                          <PopoverPanel className="absolute z-10 w-max max-w-xs transform -translate-y-full -top-2 p-2 text-sm font-normal text-white bg-gray-900 rounded-lg shadow-sm">
+                            <div className="whitespace-normal break-words">
+                              {invoice.status}
+                            </div>
+                          </PopoverPanel>
+                        </Popover>
+                      </td>
+                  {invoice.special!== true && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.total_amount.toFixed(2)}</td>}
+                  {invoice.special=== true && 
+                                    <td className="px-6 py-4 text-sm font-medium">
+                                          {/* Popover se encargará de la lógica de mostrar/ocultar */}
+                                          <Popover className="relative flex">
+                                            <PopoverButton
+                                              as="span" // Lo renderizamos como un span para que no parezca un botón
+                                              className={`truncate inline-flex max-w-25 px-2 text-xs leading-5 font-semibold rounded-full text-yellow-700 cursor-pointer focus:outline-none`}
+                                              // Mantenemos el title para que los usuarios de escritorio sigan teniendo la funcionalidad de hover
+                                              title={`Total: ${invoice.total_amount.toFixed(2)} Fiscal: ${invoice.total_fiscal?.toFixed(2)}`}
+                                            >
+                                              {invoice.total_amount.toFixed(2)}
+                                            </PopoverButton>
+                  
+                                            {/* Este es el panel que aparece al tocar el texto */}
+                                            <PopoverPanel className="absolute z-10 w-max max-w-xs transform -translate-y-full -top-2 p-2 text-sm font-normal text-white bg-gray-900 rounded-lg shadow-sm">
+                                              <div className="whitespace-normal break-words">
+                                                Monto Total : {invoice.total_amount.toFixed(2)}  Monto Fiscal: {invoice.total_fiscal?.toFixed(2)}
+                                              </div>
+                                            </PopoverPanel>
+                                          </Popover>
+                                        </td>
+                                    }
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">{invoice.vat.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full `}>

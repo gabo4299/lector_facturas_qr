@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import { getCompanies } from '../../api/companyService';
-import type {Company}from '../../types';
+import type {Batch, Category, Company}from '../../types';
 import { createManualInvoice } from '../../api/invoiceService';
 import { getBatchesForProject, getCategoriesForProject } from '../../api/projectService';
 interface AddManualInvoiceModalProps {
@@ -11,13 +11,12 @@ interface AddManualInvoiceModalProps {
   projectId: string;
   nitBeneficiario: string;
   onInvoiceCreated: () => void;
-}
-interface BatchOrCategory {
-  id: number;
-  nombre: string;
+  categorias?:Category[]
+  baches?:Batch[]
 }
 
-export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficiario, onInvoiceCreated }: AddManualInvoiceModalProps) => {
+
+export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficiario, onInvoiceCreated,baches,categorias }: AddManualInvoiceModalProps) => {
   const [montoTotal, setMontoTotal] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [nombreEmpresa, setNombreEmpresa] = useState('');
@@ -34,14 +33,14 @@ export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficia
   const [selectedBatch, setSelectedBatch] = useState<number | undefined>();
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
 
-  const [batches, setBatches] = useState<BatchOrCategory[]>([]);
-    const [categories, setCategories] = useState<BatchOrCategory[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     
   useEffect(() => {
     if (isOpen) {
       const fetchData = async () => {
-              setBatches(await getBatchesForProject(projectId));
-              setCategories(await getCategoriesForProject());
+              setBatches(baches||await getBatchesForProject(projectId));
+              setCategories(categorias||await getCategoriesForProject());
             };
             fetchData();
       const fetchEmpresas = async () => setEmpresas(await getCompanies());
@@ -55,7 +54,7 @@ export const AddManualInvoiceModal = ({ isOpen, onClose, projectId, nitBeneficia
       setError(null);
       setSugerencias([]);
     }
-  }, [isOpen]);
+  }, [isOpen,baches,categorias,projectId]);
   
   const handleNombreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
