@@ -36,7 +36,7 @@ COPY ./backend/alembic.ini /app/alembic.ini
 # COPY client_secret.json /app/client_secret.json
 
 # 6. Expone el puerto que tu aplicación usará
-EXPOSE 80
+EXPOSE 8000
 
 # 7. El comando que se ejecutará para iniciar tu app
 #    Primero corre las migraciones de Alembic y luego inicia Uvicorn.
