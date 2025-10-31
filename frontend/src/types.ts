@@ -8,7 +8,7 @@ export interface Batch {
 nombre: string;
 descripcion: string;
 id: number;
-proyecto_id: number;
+proyecto_id?: number;
 
 }
 export interface MediaTrackCapabilities {
