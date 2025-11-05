@@ -82,7 +82,7 @@ export const register = async (fullName:string, email:string, password:string) =
 export const loginWithGoogle = async (authCode: string) => {
   try {
     // Asegúrate de que este sea tu endpoint
-    console.log("evniandoi el codigo ",authCode)
+    
     const response = await apiClient.post('/auth/google', {
       code: authCode,
     });

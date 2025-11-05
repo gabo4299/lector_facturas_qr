@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware # 👈 1. Importa CORSMiddlew
 from backend.api import facturas_manuales, facturas_electronicas,auth,proyectos,usuarios,categorias,empresas,batch
 import sys
 import asyncio
-
+import datetime
 from backend.crud import crud_categoria
 from backend.db.database import AsyncSessionLocal
 from backend.config  import app_state
@@ -85,4 +85,4 @@ app.include_router(batch.router, prefix="/batch", tags=["Batches"])
 
 @app.get("/")
 def read_root():
-    return {"message": "Bienvenido a la API de Facturas"}
+    return {"message": "Bienvenido a la API de Facturas" ,"time":datetime.datetime.now()}

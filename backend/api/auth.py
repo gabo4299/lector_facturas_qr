@@ -8,7 +8,7 @@ from google.oauth2.id_token import verify_oauth2_token
 from google.auth.transport.requests import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError,jwt
-
+from backend.config import settings
 
 from backend.crud import crud_users
 from backend.schemas import schemas
@@ -85,10 +85,11 @@ async def login_with_google(
     Recibe el código de autorización de Google, lo verifica,
     obtiene/crea el usuario y devuelve un token JWT de nuestra aplicación.
     """
+    path=settings.GOOGLE_CLIENT_SECRET_PATH
     try:
         # 1. Intercambia el código de autorización por un token de ID
         flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-            'client_secret.json', # Debes crear este archivo JSON con tus credenciales
+            path, # Debes crear este archivo JSON con tus credenciales
             scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
         )
         # flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
