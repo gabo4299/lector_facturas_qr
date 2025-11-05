@@ -26,3 +26,4 @@ httptools==0.6.4
 psycopg2-binary==2.9.10
 pydantic-extra-types==2.10.5
 python-multipart==0.0.20
+pydantic_settings
