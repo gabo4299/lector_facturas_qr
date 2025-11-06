@@ -68,6 +68,7 @@ class BatchResumen(BaseModel):
     # Usamos el schema 'Batch' existente para mostrar los datos del batch
     batch_info: Batch
     monto_total_batch: float = 0.0
+    cantidad_facturas:Optional[int]=0
     cantidad_manuales:Optional[int] =0
     cantidad_electronicas:Optional[int] =0
 
@@ -78,6 +79,7 @@ class CategoriaResumen(BaseModel):
     # Usamos el schema 'Batch' existente para mostrar los datos del batch
     categoria_info: Categoria
     monto_total_categoria: float = 0.0
+    cantidad_facturas:Optional[int]=0
     cantidad_manuales:Optional[int] =0
     cantidad_electronicas:Optional[int] =0
 
@@ -88,6 +90,7 @@ class EmpresaResumen(BaseModel):
     # Usamos el schema 'Batch' existente para mostrar los datos del batch
     empresa_info: Empresa
     monto_total_empresa: float = 0.0
+    cantidad_facturas:Optional[int]=0
     cantidad_manuales:Optional[int] =0
     cantidad_electronicas:Optional[int] =0
 

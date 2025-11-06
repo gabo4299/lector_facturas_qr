@@ -85,7 +85,7 @@ export const ProjectDetailPage = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
-  const [sortBy, setSortBy] = useState('fecha');
+  const [sortBy, setSortBy] = useState('fecha_creacion');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 const [isDetailsOpen, setIsDetailsOpen] = useState(false); // 👈 2. Nuevo estado para el colapso
   
@@ -244,7 +244,13 @@ useEffect(() => {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortBy(column);
-      setSortOrder('asc');
+      if (column==="fecha_creacion"){
+        setSortOrder('desc');
+      }
+      else{
+
+        setSortOrder('asc');
+      }
     }
   };
 

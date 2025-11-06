@@ -18,7 +18,7 @@ if [ "$APP_ENV" = "production" ]; then
     echo "ENTRYPOINT: Iniciando Gunicorn para Producción..."
     # Render te da la variable $PORT. Usamos 8000 como default si no existe.
     exec gunicorn backend.main:app \
-        -w 4 \
+        -w 1 \
         -k uvicorn.workers.UvicornWorker \
         --bind 0.0.0.0:${PORT:-80}
 else

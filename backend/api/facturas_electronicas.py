@@ -150,7 +150,7 @@ async def crear_factura_electronica(
         }
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=msg_detail
+            detail="Ya existe una factura registrada con esta URL."
            
         )
     

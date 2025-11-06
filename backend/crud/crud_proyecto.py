@@ -275,7 +275,6 @@ async def get_proyecto_full_resume(db: AsyncSession, proyecto_id: int):
         models.FacturaElectronica.monto_fiscal,
         models.FacturaElectronica.batch_id,
         models.FacturaElectronica.categoria_id, models.FacturaElectronica.empresa_id,
-        
         literal("electronica").label("tipo")
     ).filter(
         models.FacturaElectronica.proyecto_id == proyecto_id,
@@ -296,13 +295,17 @@ async def get_proyecto_full_resume(db: AsyncSession, proyecto_id: int):
         func.sum(unified_invoices_cte.c.monto_total).filter(unified_invoices_cte.c.tipo == 'manual'),
         func.count().filter(unified_invoices_cte.c.tipo == 'electronica'),
         func.sum(unified_invoices_cte.c.monto_total).filter(unified_invoices_cte.c.tipo == 'electronica')
-    )
+    ).select_from(unified_invoices_cte)
+
     batch_summary_q = (
         select(
             models.Batch.id,
             models.Batch.nombre,
-            func.count(unified_invoices_cte.c.tipo), # Contamos cualquier columna no nula
-            func.sum(unified_invoices_cte.c.monto_total)
+
+            func.count(unified_invoices_cte.c.tipo).label("total_count"),
+            func.count().filter(unified_invoices_cte.c.tipo == 'manual').label("manual_count"),
+            func.count().filter(unified_invoices_cte.c.tipo == 'electronica').label("electronica_count"),
+            func.sum(unified_invoices_cte.c.monto_total).label("total_sum")
         )
         .join(unified_invoices_cte, models.Batch.id == unified_invoices_cte.c.batch_id, isouter=True)
         .filter(models.Batch.proyecto_id == proyecto_id)
@@ -312,8 +315,10 @@ async def get_proyecto_full_resume(db: AsyncSession, proyecto_id: int):
         select(
             models.Categoria.id,
             models.Categoria.nombre,
-            func.count(unified_invoices_cte.c.tipo),
-            func.sum(unified_invoices_cte.c.monto_total)
+            func.count(unified_invoices_cte.c.tipo).label("total_count"),
+            func.count().filter(unified_invoices_cte.c.tipo == 'manual').label("manual_count"),
+            func.count().filter(unified_invoices_cte.c.tipo == 'electronica').label("electronica_count"),
+            func.sum(unified_invoices_cte.c.monto_total).label("total_sum")
         )
         .join(unified_invoices_cte, models.Categoria.id == unified_invoices_cte.c.categoria_id)
         .group_by(models.Categoria.id, models.Categoria.nombre)
@@ -323,8 +328,10 @@ async def get_proyecto_full_resume(db: AsyncSession, proyecto_id: int):
             models.Empresa.id,
             models.Empresa.nombre,
             models.Empresa.nit,
-            func.count(unified_invoices_cte.c.tipo),
-            func.sum(unified_invoices_cte.c.monto_total)
+            func.count(unified_invoices_cte.c.tipo).label("total_count"),
+            func.count().filter(unified_invoices_cte.c.tipo == 'manual').label("manual_count"),
+            func.count().filter(unified_invoices_cte.c.tipo == 'electronica').label("electronica_count"),
+            func.sum(unified_invoices_cte.c.monto_total).label("total_sum")
         )
         .join(unified_invoices_cte, models.Empresa.id == unified_invoices_cte.c.empresa_id)
         .group_by(models.Empresa.id, models.Empresa.nombre, models.Empresa.nit)
@@ -343,23 +350,30 @@ async def get_proyecto_full_resume(db: AsyncSession, proyecto_id: int):
     resumen_batches = [
         schemas.BatchResumen(
             batch_info=schemas.Batch(id=id, nombre=nombre, proyecto_id=proyecto_id, descripcion=None), # Creamos el schema al vuelo
-            cantidad_facturas=count,
-            monto_total_batch=float(total or 0.0)
-        ) for id, nombre, count, total in batch_res.all()
+            cantidad_facturas=total_count,
+            cantidad_manuales=manual_count, # <-- Nuevo
+            cantidad_electronicas=electronica_count, # <-- Nuevo
+            monto_total_batch=float(total_sum or 0.0)
+        ) for id, nombre, total_count, manual_count,electronica_count,total_sum in batch_res.all()
     ]
     resumen_categorias = [
         schemas.CategoriaResumen(
             categoria_info=schemas.Categoria(id=id, nombre=nombre),
-            cantidad_facturas=count,
-            monto_total_categoria=float(total or 0.0)
-        ) for id, nombre, count, total in cat_res.all()
+            cantidad_facturas=total_count,
+            cantidad_manuales=manual_count, # <-- Nuevo
+            cantidad_electronicas=electronica_count,
+            monto_total_categoria=float(total_sum or 0.0)
+
+        ) for id, nombre, total_count, manual_count,electronica_count,total_sum in cat_res.all()
     ]
     resumen_empresas = [
         schemas.EmpresaResumen(
             empresa_info=schemas.Empresa(id=id, nombre=nombre, nit=nit),
-            cantidad_facturas=count,
-            monto_total_empresa=float(total or 0.0)
-        ) for id, nombre, nit, count, total in emp_res.all()
+            cantidad_facturas=total_count,
+            cantidad_manuales=manual_count, # <-- Nuevo
+            cantidad_electronicas=electronica_count,
+            monto_total_empresa=float(total_sum or 0.0)
+        ) for id, nombre, nit, total_count, manual_count,electronica_count,total_sum  in emp_res.all()
     ]
     proyecto_schema = schemas.Proyecto.model_validate(proyecto_obj)
     proyecto_schema=proyecto_schema.model_dump()
@@ -841,6 +855,7 @@ async def buscar_facturas_unificadas(db: AsyncSession, filtros: schemas.FiltrosF
             select(
                 models.FacturaManual.id,
                 models.FacturaManual.fecha,
+                models.FacturaManual.fecha_creacion,
                 models.FacturaManual.monto_total,
                 literal("manual").label("tipo"),
                 # --- AÑADIMOS LAS COLUMNAS PARA ORDENAR ---
@@ -860,6 +875,7 @@ async def buscar_facturas_unificadas(db: AsyncSession, filtros: schemas.FiltrosF
             select(
                 models.FacturaElectronica.id,
                 models.FacturaElectronica.fecha,
+                models.FacturaElectronica.fecha_creacion,
                 models.FacturaElectronica.monto_total,
                 literal("electronica").label("tipo"),
                 # --- AÑADIMOS LAS MISMAS COLUMNAS ---
@@ -891,10 +907,11 @@ async def buscar_facturas_unificadas(db: AsyncSession, filtros: schemas.FiltrosF
     # Lógica de Ordenamiento Dinámico
     sortable_columns = {
         "fecha": unified_cte.c.fecha,
+        "fecha_creacion": unified_cte.c.fecha_creacion,
         "monto_total": unified_cte.c.monto_total,
         "empresa": unified_cte.c.empresa_nombre,
         "categoria": unified_cte.c.categoria_nombre,
-        "batch": unified_cte.c.batch_nombre,
+        "batch": unified_cte.c.batch_nombre,   
     }
     sort_column = sortable_columns.get(filtros.sort_by, unified_cte.c.fecha)
     
